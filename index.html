@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Stage Layout Maker v20.1</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+    :root { --primary: #1d9e75; --accent: #e11d48; --bg: #d8d6cf; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; background: var(--bg); overflow: hidden; touch-action: none; }
+
+    /* Toolbar */
+    #toolbar { background: white; border-bottom: 1px solid #ccc; padding: 5px 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; z-index: 100; flex-shrink: 0; }
+    .tb-group { display: flex; align-items: center; gap: 4px; font-size: 11px; }
+    .sep { width: 1px; height: 20px; background: #ddd; margin: 0 4px; }
+    button { cursor: pointer; padding: 6px 10px; border: 1px solid #ccc; border-radius: 5px; background: white; font-size: 11px; white-space: nowrap; }
+    button.active { background: #e1f5ee; border-color: var(--primary); color: #0f6e56; font-weight: bold; }
+    .val-input { width: 45px; height: 22px; border: 1px solid var(--primary); border-radius: 4px; text-align: center; font-size: 11px; }
+
+    /* Main Layout */
+    #main { display: flex; flex: 1; overflow: hidden; }
+    #sidebar { width: 160px; background: white; border-right: 1px solid #ccc; display: flex; flex-direction: column; flex-shrink: 0; }
+    .tabs { display: flex; background: #f0f0f0; border-bottom: 1px solid #ccc; }
+    .tab { flex: 1; padding: 10px 5px; text-align: center; font-size: 10px; cursor: pointer; color: #666; }
+    .tab.active { background: white; color: var(--primary); font-weight: bold; border-bottom: 2px solid var(--primary); }
+    .inst-list { flex: 1; overflow-y: auto; }
+    .inst { padding: 8px 10px; font-size: 12px; border-bottom: 1px solid #f0f0f0; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+
+    /* Canvas Area */
+    #canvas-wrap { flex: 1; overflow: auto; position: relative; padding: 20px; }
+    #zoom-container { transform-origin: top left; }
+    #stage { position: relative; background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.2); user-select: none; }
+    .grid { position: absolute; inset: 0; pointer-events: none; z-index: 2; background-image: linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px); background-size: 30px 30px; }
+    svg { position: absolute; inset: 0; pointer-events: none; z-index: 3; overflow: visible; }
+    
+    /* Elements */
+    .elem { position: absolute; cursor: move; display: flex; align-items: center; justify-content: center; z-index: 10; font-weight: bold; touch-action: none; }
+    .elem.selected { outline: 2px solid var(--primary); outline-offset: 4px; z-index: 100 !important; }
+    .chair { border-radius: 50%; background: white; border: 2px solid; }
+    .rect { border: 2px solid; background: rgba(200,200,200,0.1); border-radius: 4px; }
+    .label { border: 1px solid; background: white; border-radius: 12px; padding: 2px 8px; font-size: 11px; }
+
+    /* Handles */
+    .handle { position: absolute; width: 14px; height: 14px; background: var(--primary); border: 2px solid white; border-radius: 50%; z-index: 110; }
+    .resize-se { bottom: -7px; right: -7px; cursor: nwse-resize; }
+    .rotate-h { top: -35px; left: 50%; transform: translateX(-50%); background: #ff9800; cursor: crosshair; }
+
+    /* Selection Box */
+    #selection-box { position: absolute; border: 1px solid var(--primary); background: rgba(29, 158, 117, 0.1); pointer-events: none; z-index: 200; display: none; }
+
+    /* Property Bar */
+    #prop-bar { height: 50px; background: white; border-top: 1px solid #ccc; display: flex; align-items: center; padding: 0 15px; gap: 10px; font-size: 11px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+    <div class="tb-group">
+        <button id="btn-select" class="active" onclick="setTool('select')">▷ 選択</button>
+        <button id="btn-chair" onclick="setTool('chair')">○ 椅子</button>
+        <button id="btn-arc" onclick="setTool('arc')">⌒ 弧配置</button>
+        <button id="btn-label" onclick="setTool('label')">Ａ ラベル</button>
+        <button id="btn-rect" onclick="setTool('rect')">□ 四角</button>
+    </div>
+    <div class="sep"></div>
+    <div class="tb-group">
+        ズーム:<input type="range" id="zoom-range" min="0.3" max="1.5" step="0.05" value="1.0" oninput="syncZoom(this.value)">
+    </div>
+    <div class="sep"></div>
+    <div class="tb-group">
+        <button onclick="undo()">↩</button>
+        <button onclick="redo()">↪</button>
+        <button onclick="deleteSelected()" style="color:var(--accent); font-weight:bold;">削除</button>
+    </div>
+    <div class="sep"></div>
+    <div class="tb-group">
+        <button onclick="exportJSON()">💾 保存</button>
+        <button onclick="exportPNG()" style="background:var(--primary); color:white; border:none;">📷 画像</button>
+    </div>
+</div>
+
+<div id="main">
+    <div id="sidebar">
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('main')">木・金</div>
+            <div class="tab" onclick="switchTab('perc')">Perc.</div>
+        </div>
+        <div id="list-main" class="inst-list"></div>
+        <div id="list-perc" class="inst-list" style="display:none"></div>
+    </div>
+    <div id="canvas-wrap">
+        <div id="zoom-container">
+            <div id="stage" style="width:1000px; height:750px;">
+                <div class="grid"></div>
+                <svg id="svg-layer"></svg>
+                <div id="selection-box"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="prop-bar">
+    <div id="prop-editor" style="display:none; align-items:center; gap:10px; width:100%;">
+        色:<input type="color" id="p-color" onchange="updateSelected('color', this.value)">
+        文字:<input type="text" id="p-text" style="width:80px" oninput="updateSelected('label', this.value)">
+        <button onclick="deleteSelected()" style="background:var(--accent); color:white; border:none; margin-left:auto;">削除</button>
+    </div>
+    <div id="prop-empty">要素を選択して編集</div>
+</div>
+
+<script>
+// 基本データ
+const MAIN_INST=[{l:"Fl",c:"#e35"},{l:"Cl",c:"#36a"},{l:"Sax",c:"#1a8"},{l:"Tp",c:"#c70"},{l:"Tb",c:"#a84"},{l:"Hr",c:"#84a"},{l:"Tu",c:"#08a"}];
+const PERC_CHAIRS=["Timp.","S.D.","Drm","Cym"];
+
+let elements = [], selectedIds = [], tool = 'select';
+let zoom = 1.0, chairSize = 26, history = [], historyIdx = -1;
+let currentInst = MAIN_INST[0];
+let dragData = null, selectBoxStart = null;
+
+const stage = document.getElementById('stage');
+const svg = document.getElementById('svg-layer');
+
+function init() {
+    renderList(MAIN_INST, 'list-main');
+    renderPerc();
+    setupEvents();
+    saveHistory();
+}
+
+function renderList(list, id) {
+    const container = document.getElementById(id);
+    list.forEach(inst => {
+        const div = document.createElement('div');
+        div.className = 'inst';
+        div.innerHTML = `<span style="width:12px;height:12px;background:${inst.c};border-radius:50%"></span>${inst.l}`;
+        div.onclick = () => { currentInst = inst; if(tool === 'select') setTool('chair'); };
+        container.appendChild(div);
+    });
+}
+
+function renderPerc() {
+    const container = document.getElementById('list-perc');
+    PERC_CHAIRS.forEach(l => {
+        const div = document.createElement('div'); div.className = 'inst';
+        div.innerHTML = `<span style="width:12px;height:12px;background:#2a4a8a;border-radius:50%"></span>${l}`;
+        div.onclick = () => { currentInst={l:l, c:"#2a4a8a"}; setTool('chair'); };
+        container.appendChild(div);
+    });
+}
+
+function switchTab(t) {
+    document.getElementById('list-main').style.display = t === 'main' ? 'block' : 'none';
+    document.getElementById('list-perc').style.display = t === 'perc' ? 'block' : 'none';
+}
+
+function setTool(t) {
+    tool = t;
+    document.querySelectorAll('button[id^=btn-]').forEach(b => b.classList.toggle('active', b.id === 'btn-'+t));
+}
+
+function syncZoom(val) {
+    zoom = parseFloat(val);
+    document.getElementById('zoom-container').style.transform = `scale(${zoom})`;
+}
+
+function addElem(opts) {
+    const el = {
+        id: Date.now() + Math.random(), type: opts.type, 
+        x: opts.x, y: opts.y, w: opts.w || 26, h: opts.h || 26,
+        angle: 0, color: opts.color || currentInst.c, label: opts.text || currentInst.l
+    };
+    elements.push(el);
+    render();
+    return el;
+}
+
+function render() {
+    stage.querySelectorAll('.elem').forEach(n => n.remove());
+    elements.forEach(el => {
+        const div = document.createElement('div');
+        div.className = `elem ${el.type} ${selectedIds.includes(el.id) ? 'selected' : ''}`;
+        div.style.cssText = `left:${el.x}px; top:${el.y}px; width:${el.w}px; height:${el.h}px; transform:rotate(${el.angle}deg); border-color:${el.color}; color:${el.color};`;
+        div.dataset.id = el.id;
+        div.innerHTML = `<div>${el.label}</div>`;
+        if(selectedIds.includes(el.id) && el.type !== 'chair') {
+            div.innerHTML += `<div class="handle resize-se"></div><div class="handle rotate-h"></div>`;
+        }
+        stage.appendChild(div);
+    });
+    updateProps();
+}
+
+function updateProps() {
+    const isSel = selectedIds.length > 0;
+    document.getElementById('prop-editor').style.display = isSel ? 'flex' : 'none';
+    document.getElementById('prop-empty').style.display = isSel ? 'none' : 'block';
+}
+
+function updateSelected(key, val) {
+    elements.filter(el => selectedIds.includes(el.id)).forEach(el => el[key] = val);
+    render();
+}
+
+function deleteSelected() {
+    elements = elements.filter(el => !selectedIds.includes(el.id));
+    selectedIds = [];
+    render(); saveHistory();
+}
+
+function setupEvents() {
+    stage.addEventListener('pointerdown', e => {
+        const r = stage.getBoundingClientRect();
+        const x = (e.clientX - r.left)/zoom, y = (e.clientY - r.top)/zoom;
+        const target = e.target.closest('.elem');
+        
+        if(tool === 'select') {
+            if(target) {
+                const id = parseFloat(target.dataset.id);
+                selectedIds = [id];
+                dragData = { el: elements.find(el => el.id === id), ox: x - elements.find(el => el.id === id).x, oy: y - elements.find(el => el.id === id).y };
+            } else {
+                selectedIds = [];
+            }
+            render();
+        } else if(tool === 'chair') {
+            addElem({type:'chair', x: x-13, y: y-13}); saveHistory();
+        }
+    });
+
+    window.addEventListener('pointermove', e => {
+        if(dragData) {
+            const r = stage.getBoundingClientRect();
+            dragData.el.x = (e.clientX - r.left)/zoom - dragData.ox;
+            dragData.el.y = (e.clientY - r.top)/zoom - dragData.oy;
+            render();
+        }
+    });
+
+    window.addEventListener('pointerup', () => { if(dragData) saveHistory(); dragData = null; });
+}
+
+function saveHistory() {
+    history = history.slice(0, historyIdx + 1);
+    history.push(JSON.stringify(elements));
+    historyIdx++;
+}
+function undo() { if(historyIdx > 0) { historyIdx--; elements = JSON.parse(history[historyIdx]); render(); } }
+function redo() { if(historyIdx < history.length - 1) { historyIdx++; elements = JSON.parse(history[historyIdx]); render(); } }
+
+function exportJSON() {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(elements)])); a.download = 'layout.json'; a.click();
+}
+function exportPNG() {
+    html2canvas(stage).then(canvas => { const a = document.createElement('a'); a.href = canvas.toDataURL(); a.download = 'layout.png'; a.click(); });
+}
+
+window.onload = init;
+</script>
+</body>
+</html>
