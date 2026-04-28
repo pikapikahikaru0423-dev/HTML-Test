@@ -311,6 +311,153 @@ document.getElementById('stage').onpointerdown = (e) => {
         originalDown(e);
     }
 };
+    // --- Parts 3: Multi-Select, Transform, Label List & Clipboard ---
+
+/**
+ * 追加のラベルプリセット（現場でよく使う小物・記号）
+ */
+const LABEL_PRESETS = ["( )", "Cond.", "Piano", "Harp", "C.B.", "Tuba", "Timps"];
+
+/**
+ * 範囲選択用の矩形描画
+ */
+const selBox = document.createElement('div');
+selBox.id = 'selection-box';
+selBox.style.cssText = "position:absolute; border:1px solid var(--primary); background:rgba(29,158,117,0.1); pointer-events:none; display:none; z-index:200;";
+document.getElementById('stage').appendChild(selBox);
+
+/**
+ * コピー＆ペースト機能
+ */
+let clipboard = [];
+window.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'c') copySelection();
+    if ((e.ctrlKey || e.metaKey) && e.key === 'v') pasteSelection();
+    if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
+});
+
+function copySelection() {
+    clipboard = state.elements.filter(el => state.selectedIds.includes(el.id))
+                              .map(el => ({ ...el, id: Math.random() }));
+}
+
+function pasteSelection() {
+    clipboard.forEach(el => {
+        const newEl = { ...el, id: Math.random(), x: el.x + 20, y: el.y + 20 };
+        state.elements.push(newEl);
+        state.selectedIds = [newEl.id];
+    });
+    render();
+    saveHistory();
+}
+
+/**
+ * プロパティ編集（選択中の全要素に適用）
+ */
+function updateSelected(key, val) {
+    state.elements.forEach(el => {
+        if (state.selectedIds.includes(el.id)) {
+            el[key] = val;
+            if (el.gid) delete el.gid; // 個別に編集したらグループ解除
+        }
+    });
+    render();
+}
+
+/**
+ * 範囲選択・変形ロジックの統合
+ */
+let boxStart = null;
+
+// 要素をクリックした際のハンドラ
+function handleElementDown(e, el) {
+    e.stopPropagation();
+    if (state.currentTool !== 'select') return;
+
+    if (!e.shiftKey && !state.selectedIds.includes(el.id)) {
+        state.selectedIds = [el.id];
+    } else if (e.shiftKey) {
+        state.selectedIds.push(el.id);
+    }
+
+    const rect = document.getElementById('stage').getBoundingClientRect();
+    const x = (e.clientX - rect.left) / state.zoom;
+    const y = (e.clientY - rect.top) / state.zoom;
+
+    startDragging({
+        type: 'elem',
+        target: el,
+        group: state.elements.filter(item => state.selectedIds.includes(item.id)).map(item => ({
+            el: item, ox: x - item.x, oy: y - item.y
+        }))
+    });
+    render();
+}
+
+// Stageのpointerdownをさらに拡張
+const baseStageDown = document.getElementById('stage').onpointerdown;
+document.getElementById('stage').onpointerdown = (e) => {
+    const rect = document.getElementById('stage').getBoundingClientRect();
+    const x = (e.clientX - rect.left) / state.zoom;
+    const y = (e.clientY - rect.top) / state.zoom;
+
+    if (state.currentTool === 'select' && e.target.id === 'elements-layer') {
+        state.selectedIds = [];
+        boxStart = { x, y };
+        selBox.style.display = 'block';
+    } else if (state.currentTool === 'label') {
+        const text = prompt("テキストを入力してください", "Label");
+        if(text) addElement('label', x, y, { label: text, color: '#333', w: 80, h: 30 });
+    } else if (state.currentTool === 'rect') {
+        addElement('rect', x, y, { label: '', color: '#999', w: 100, h: 60 });
+    } else {
+        baseStageDown(e);
+    }
+};
+
+document.addEventListener('pointermove', (e) => {
+    if (boxStart) {
+        const rect = document.getElementById('stage').getBoundingClientRect();
+        const curX = (e.clientX - rect.left) / state.zoom;
+        const curY = (e.clientY - rect.top) / state.zoom;
+        
+        const x1 = Math.min(boxStart.x, curX), y1 = Math.min(boxStart.y, curY);
+        const x2 = Math.max(boxStart.x, curX), y2 = Math.max(boxStart.y, curY);
+        
+        selBox.style.left = x1 + 'px'; selBox.style.top = y1 + 'px';
+        selBox.style.width = (x2 - x1) + 'px'; selBox.style.height = (y2 - y1) + 'px';
+
+        state.selectedIds = state.elements.filter(el => 
+            el.x > x1 && el.x < x2 && el.y > y1 && el.y < y2
+        ).map(el => el.id);
+        render();
+    }
+    
+    // パーツ1の移動ロジック継続
+    if (dragSession && dragSession.type === 'elem') {
+        const rect = document.getElementById('stage').getBoundingClientRect();
+        const x = (e.clientX - rect.left) / state.zoom;
+        const y = (e.clientY - rect.top) / state.zoom;
+        dragSession.group.forEach(g => {
+            g.el.x = x - g.ox;
+            g.el.y = y - g.oy;
+        });
+        render();
+    }
+});
+
+document.addEventListener('pointerup', () => {
+    boxStart = null;
+    selBox.style.display = 'none';
+});
+
+// 削除機能
+function deleteSelected() {
+    state.elements = state.elements.filter(el => !state.selectedIds.includes(el.id));
+    state.selectedIds = [];
+    render();
+    saveHistory();
+}
 
 // 初期化
 window.onload = () => {
