@@ -1,317 +1,461 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stage Layout Maker v22.0 (Full Specs)</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <style>
-        :root { --primary: #1d9e75; --accent: #e11d48; --bg: #d8d6cf; --sidebar-w: 180px; }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; background: var(--bg); overflow: hidden; touch-action: none; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>舞台配置図 Pro v20.0</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{display:flex;flex-direction:column;height:100vh;font-family:-apple-system,'Hiragino Sans','Noto Sans JP',sans-serif;background:#d8d6cf;overflow:hidden;touch-action:none;}
 
-        /* UI Structure */
-        #toolbar { height: 50px; background: white; border-bottom: 1px solid #ccc; display: flex; align-items: center; padding: 0 12px; gap: 8px; z-index: 100; flex-shrink: 0; overflow-x: auto; }
-        #main-content { display: flex; flex: 1; overflow: hidden; position: relative; }
-        #sidebar { width: var(--sidebar-w); background: white; border-right: 1px solid #ccc; display: flex; flex-direction: column; flex-shrink: 0; z-index: 50; }
-        #canvas-area { flex: 1; overflow: auto; position: relative; background: #bbb; padding: 80px; scroll-behavior: smooth; }
-        
-        /* Canvas Layers */
-        #zoom-layer { transform-origin: top left; }
-        #stage { position: relative; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
-        #pdf-canvas { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
-        #svg-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; overflow: visible; }
-        #elements-layer { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
-        
-        /* Elements */
-        .elem { position: absolute; display: flex; align-items: center; justify-content: center; cursor: move; pointer-events: auto; font-weight: bold; font-size: 11px; text-align: center; }
-        .elem.selected { outline: 3px solid var(--primary); outline-offset: 4px; z-index: 100 !important; }
-        .chair { border-radius: 50%; border: 2px solid; background: white; }
-        .rect { border: 2px solid; background: rgba(200,200,200,0.1); }
-        .label { border: 1px solid transparent; background: transparent; }
+/* Toolbar */
+#toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:5px 10px;background:white;border-bottom:1px solid #ddd;min-height:42px;flex-shrink:0;z-index:100;}
+.tb-group{display:flex;align-items:center;gap:4px;font-size:11px;}
+.tb-sep{width:1px;height:22px;background:#e0e0e0;margin:0 2px;}
 
-        /* Utility */
-        #selection-box { position: absolute; border: 1px solid var(--primary); background: rgba(29,158,117,0.1); pointer-events: none; display: none; z-index: 200; }
-        #prop-bar { height: 50px; background: white; border-top: 1px solid #ccc; display: flex; align-items: center; padding: 0 20px; gap: 15px; font-size: 12px; z-index: 300; }
-        
-        button { padding: 6px 12px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: white; font-size: 12px; white-space: nowrap; }
-        button.active { background: var(--primary); color: white; border-color: var(--primary); font-weight: bold; }
-        .tab { flex: 1; padding: 10px 2px; text-align: center; font-size: 11px; cursor: pointer; border-bottom: 1px solid #ccc; background: #f0f0f0; color: #666; }
-        .tab.active { background: white; border-bottom: 2px solid var(--primary); color: var(--primary); font-weight: bold; }
-    </style>
+button{padding:6px 10px;font-size:11px;border:1px solid #ccc;border-radius:5px;background:white;cursor:pointer;color:#333;white-space:nowrap;transition:background .12s;}
+button:hover{background:#f0f0ee;}
+button.active{background:#e1f5ee;border-color:#1d9e75;color:#0f6e56;font-weight:600;}
+button:disabled{opacity:0.3;cursor:default;}
+.btn-del{background:#fff0f0;color:#d33;border-color:#ffcccc;}
+.btn-del:hover{background:#ffe5e5;}
+
+.val-input {width:45px;height:22px;border:1px solid #1d9e75;border-radius:4px;background:#f0f7f5;text-align:center;font-weight:bold;color:#1d9e75;outline:none;font-size:11px;}
+input[type=range]{width:60px;cursor:pointer;vertical-align:middle;}
+
+/* Layout */
+#main{display:flex;flex:1;overflow:hidden;}
+#sidebar{width:175px;background:white;border-right:1px solid #ddd;display:flex;flex-direction:column;flex-shrink:0;}
+.tabs{display:flex;border-bottom:1px solid #eee;background:#f9f9f9;}
+.tab{flex:1;padding:10px 2px;text-align:center;cursor:pointer;font-size:10px;color:#888;border-bottom:2px solid transparent;}
+.tab.active{border-bottom:2px solid #1d9e75;color:#1d9e75;font-weight:600;background:white;}
+.inst-list{flex:1;overflow-y:auto;padding-bottom:20px;}
+.inst-header{padding:8px 10px;font-size:10px;color:#999;background:#fdfdfd;font-weight:bold;border-bottom:1px solid #eee;}
+.inst{padding:8px 10px;font-size:11px;border-bottom:1px solid #f0f0f0;cursor:pointer;display:flex;align-items:center;gap:6px;}
+
+#canvas-wrap{flex:1;overflow:auto;position:relative;background:#d8d6cf;user-select:none;}
+#zoom-container{transform-origin:top left;position:absolute;top:20px;left:20px;}
+#stage{position:relative;background:white;border:1px solid #aaa;box-shadow:0 2px 16px rgba(0,0,0,0.18);touch-action:none;}
+#bg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;display:none;}
+.stage-grid{position:absolute;inset:0;pointer-events:none;z-index:2;background-image:linear-gradient(rgba(0,0,0,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.05) 1px,transparent 1px);background-size:30px 30px;}
+#svg-layer{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:3;}
+
+/* Elements */
+.elem{position:absolute;cursor:move;user-select:none;touch-action:none;z-index:10;pointer-events:auto;}
+.chair{border-radius:50%;border:2px solid;background:white;display:flex;align-items:center;justify-content:center;font-weight:600;width:100%;height:100%;}
+.chair-text{position:absolute;white-space:nowrap;pointer-events:none;text-align:center;}
+.elem.selected{outline:2px solid #1d9e75;outline-offset:4px;}
+.elem.grouped-member{box-shadow: 0 0 0 2px rgba(29,158,117,0.2);}
+
+/* UI Adjustment: Rounded and Compact */
+.label-elem{background:white;border:1px solid #aaa;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:11px;padding:2px 8px;}
+.rect-elem{border:2px solid #555;background:rgba(200,200,200,0.1);display:flex;align-items:center;justify-content:center;border-radius:2px;}
+
+.dim-elem{pointer-events:auto;}
+.dim-line{position:absolute;height:2px;background:#1d9e75;transform-origin:0 50%;}
+.dim-text{position:absolute;color:#1d9e75;font-weight:bold;font-size:12px;white-space:nowrap;transform:translate(-50%,-120%);}
+
+/* Selection Box (iPad) */
+#selection-box{position:absolute;border:1px dashed #1d9e75;background:rgba(29,158,117,0.1);pointer-events:none;z-index:1000;display:none;}
+
+/* Handles */
+.handle{position:absolute;width:12px;height:12px;background:#1d9e75;border:2px solid white;border-radius:50%;z-index:25;display:none;}
+.elem.selected .handle{display:block;}
+.nw{top:-6px;left:-6px;cursor:nwse-resize;}
+.se{bottom:-6px;right:-6px;cursor:nwse-resize;}
+.rot{top:-25px;left:calc(50% - 6px);cursor:crosshair;background:#ff9800;}
+
+#guide-panel{position:fixed;top:55px;left:190px;background:white;border:1px solid #ccc;border-radius:8px;padding:12px;box-shadow:0 4px 15px rgba(0,0,0,0.15);display:none;z-index:1000;font-size:12px;min-width:160px;}
+.step{display:flex;align-items:center;gap:8px;margin:5px 0;opacity:0.3;}
+.step.active{opacity:1;color:#1d9e75;font-weight:bold;}
+.step-num{width:18px;height:18px;background:#eee;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;}
+
+#props-bar{padding:5px 12px;background:white;border-top:1px solid #eee;font-size:11px;display:flex;align-items:center;justify-content:space-between;min-height:40px;flex-shrink:0;}
+#props{display:flex;align-items:center;gap:10px;}
+#hint-box{color:#666;background:#f5f5f5;padding:4px 10px;border-radius:4px;border-left:3px solid #1d9e75;}
+</style>
 </head>
 <body>
 
 <div id="toolbar">
-    <button id="tool-select" class="active" onclick="setTool('select')">選択</button>
-    <button id="tool-chair" onclick="setTool('chair')">椅子</button>
-    <button id="tool-arc" onclick="setTool('arc')">弧配置</button>
-    <button id="tool-label" onclick="setTool('label')">ラベル</button>
-    <button id="tool-rect" onclick="setTool('rect')">四角</button>
-    <div style="width:1px; height:20px; background:#ccc; margin:0 5px;"></div>
-    <button onclick="undo()">Undo</button>
-    <button onclick="deleteSelected()" style="color:var(--accent)">削除</button>
-    <button onclick="createRisers()">層 ひな壇</button>
-    <button onclick="document.getElementById('pdf-input').click()">📂 PDF</button>
-    <button onclick="exportJSON()">💾 保存</button>
-    <button onclick="exportPNG()" style="background:var(--primary); color:white;">📷 出力</button>
-    <input type="file" id="pdf-input" accept="application/pdf" style="display:none" onchange="loadPDF(this.files[0])">
+  <div class="tb-group">
+    <button id="btn-select" class="active" onclick="setTool('select')">▷ 選択</button>
+    <button id="btn-chair" onclick="setTool('chair')">○ 椅子</button>
+    <button id="btn-arc" onclick="setTool('arc')">⌒ 弧配置</button>
+    <button id="btn-line" onclick="setTool('line')">｜ 線配置</button>
+    <button id="btn-label" onclick="setTool('label')">Ａ ラベル</button>
+    <button id="btn-rect" onclick="setTool('rect')">□ 四角</button>
+    <button id="btn-dim" onclick="setTool('dim')">↔ 寸法</button>
+  </div>
+  <div class="tb-sep"></div>
+  <div class="tb-group">
+    <button class="btn-del" onclick="deleteSelected()">🗑 削除</button>
+  </div>
+  <div class="tb-sep"></div>
+  <div class="tb-group">
+    ズーム:<input type="range" id="zoom-range" min="0.3" max="1.5" step="0.05" value="1.0" oninput="syncZoom(this.value, 'range')">
+    <input type="number" id="zoom-num" class="val-input" min="30" max="150" step="5" value="100" oninput="syncZoom(this.value, 'num')">%
+    サイズ:<input type="range" id="size-range" min="15" max="50" step="1" value="26" oninput="syncSize(this.value, 'range')">
+    <input type="number" id="size-num" class="val-input" min="15" max="50" step="1" value="26" oninput="syncSize(this.value, 'num')">px
+  </div>
+  <div class="tb-sep"></div>
+  <div class="tb-group">
+    <button id="undo-btn" onclick="undo()">↩ 戻す</button>
+    <button id="redo-btn" onclick="redo()">↪ 進む</button>
+    <button onclick="groupSelected()">グループ化</button>
+    <button onclick="ungroupSelected()">解除</button>
+  </div>
+  <div class="tb-sep"></div>
+  <div class="tb-group">
+    <button onclick="exportTemplate()">💾 保存</button>
+    <button onclick="importTemplate()">📂 読込</button>
+    <button onclick="loadPDF()">📄 PDF</button>
+    <button onclick="exportPNG()" style="background:#1d9e75;color:white;">📷 画像</button>
+    <button onclick="resetCanvas()" style="color:#d33;">⚠ 消去</button>
+  </div>
 </div>
 
-<div id="main-content">
-    <div id="sidebar"></div>
-    <div id="canvas-area">
-        <div id="zoom-layer">
-            <div id="stage" style="width: 1000px; height: 750px;">
-                <canvas id="pdf-canvas"></canvas>
-                <svg id="svg-layer"></svg>
-                <div id="elements-layer"></div>
-                <div id="selection-box"></div>
-            </div>
-        </div>
+<div id="main">
+  <div id="sidebar">
+    <div class="tabs">
+      <div class="tab active" id="tab-main-btn" onclick="switchTab('main')">木・金</div>
+      <div class="tab" id="tab-other-btn" onclick="switchTab('other')">その他</div>
+      <div class="tab" id="tab-perc-btn" onclick="switchTab('perc')">Perc.</div>
     </div>
+    <div id="list-main" class="inst-list"></div>
+    <div id="list-other" class="inst-list" style="display:none"></div>
+    <div id="list-perc" class="inst-list" style="display:none"></div>
+  </div>
+  <div id="canvas-wrap">
+    <div id="zoom-container">
+      <div id="stage" style="width:960px;height:700px;">
+        <canvas id="bg"></canvas>
+        <div class="stage-grid"></div>
+        <svg id="svg-layer"></svg>
+        <div id="selection-box"></div>
+      </div>
+    </div>
+  </div>
 </div>
 
-<div id="prop-bar">要素を選択して編集</div>
+<div id="guide-panel">
+  <div id="guide-title" style="font-weight:bold;margin-bottom:8px;"></div>
+  <div id="guide-steps"></div>
+</div>
+
+<div id="props-bar">
+  <div id="props">要素を選択して編集</div>
+  <div id="hint-box">💡 ヒント: ツールを選択してください</div>
+</div>
 
 <script>
-// --- 1. State Management ---
-let state = {
-    elements: [],
-    selectedIds: [],
-    currentTool: 'select',
-    zoom: 1.0,
-    history: [],
-    historyIndex: -1,
-    tempPoints: []
-};
+const MAIN_INST=[{l:"Pic",c:"#e35"},{l:"Fl",c:"#e35"},{l:"Ob",c:"#c44"},{l:"B♭Cl",c:"#36a"},{l:"B.Cl",c:"#36a"},{l:"A.Sax",c:"#1a8"},{l:"T.Sax",c:"#1a8"},{l:"B.Sax",c:"#1a8"},{l:"Fg",c:"#c44"},{l:"Tp",c:"#c70"},{l:"Tb",c:"#a84"},{l:"Hr",c:"#84a"},{l:"Tu",c:"#08a"},{l:"Eu",c:"#08a"},{l:"Stb",c:"#555"}];
+const OTHER_INST=[{l:"Cor Angl.",c:"#c44"},{l:"E♭Cl",c:"#36a"},{l:"A.Cl",c:"#36a"},{l:"CA.Cl",c:"#36a"},{l:"S.Sax",c:"#1a8"}];
+const PERC_LIST=["BD","Chime","Harp","Piano","Vib.","Xlo.","Marb.","Glo.","W.C.","T.-tam","Timb.","Bongos","Congas","StPa","Base","Synth.","Timp.","S.D.","4Tom","S.Cym","C.Cym","Drm"];
 
-const INSTRUMENTS = {
-    woodwind: [
-        {l:"Fl", c:"#e35"}, {l:"Ob", c:"#e35"}, {l:"Cl", c:"#36a"}, {l:"B.Cl", c:"#36a"},
-        {l:"Fg", c:"#e35"}, {l:"A.Sax", c:"#1a8"}, {l:"T.Sax", c:"#1a8"}, {l:"B.Sax", c:"#1a8"}
-    ],
-    brass: [
-        {l:"Tp", c:"#c70"}, {l:"Hr", c:"#84a"}, {l:"Tb", c:"#a84"}, 
-        {l:"Euph", c:"#08a"}, {l:"Tu", c:"#08a"}, {l:"St.B", c:"#08a"}
-    ],
-    perc: [
-        {l:"Timps", c:"#555"}, {l:"S.D.", c:"#555"}, {l:"B.D.", c:"#555"}, 
-        {l:"Cym", c:"#555"}, {l:"Glock", c:"#555"}, {l:"Xylo", c:"#555"}, {l:"Vibe", c:"#555"}
-    ]
-};
+let elements=[], selectedList=[], tool='select';
+let zoomLevel=1.0, currentChairSize=26, idCounter=0, gCounter=0;
+let currentInst=MAIN_INST[0], isShift=false;
+let draggingObjs=[], resizingObj=null, resizeHandle='', rotatingObj=null, startAng=0, startMouseAng=0;
+let arcPts=[], linePts=[], dimPts=[], history=[], historyIndex=-1;
+let selectStart=null, isSelecting=false;
 
-let currentInst = INSTRUMENTS.woodwind[0];
-let dragSession = null;
-let boxStart = null;
+const stage=document.getElementById('stage');
+const svg=document.getElementById('svg-layer');
 
-// --- 2. Core Render ---
-function render() {
-    const layer = document.getElementById('elements-layer');
-    layer.innerHTML = '';
-    state.elements.forEach(el => {
-        const div = document.createElement('div');
-        div.className = `elem ${el.type} ${state.selectedIds.includes(el.id) ? 'selected' : ''}`;
-        div.style.cssText = `left:${el.x}px; top:${el.y}px; width:${el.w}px; height:${el.h}px; border-color:${el.color}; color:${el.color};`;
-        div.innerHTML = `<span>${el.label || ''}</span>`;
-        div.onpointerdown = (e) => handleElementDown(e, el);
-        layer.appendChild(div);
-    });
-    renderSVG();
-    updatePropertyUI();
+function init(){ renderList(MAIN_INST,'list-main'); renderList(OTHER_INST,'list-other'); renderPercList(); setupEvents(); saveHistory(); updateHint(); updateGuide(); }
+
+function renderList(list,id){ 
+  const container=document.getElementById(id); 
+  list.forEach(inst=>{ 
+    const div=document.createElement('div'); 
+    div.className='inst'; 
+    div.innerHTML=`<span style="width:10px;height:10px;background:${inst.c};border-radius:50%"></span>${inst.l}`; 
+    div.onclick=()=>{ currentInst=inst; updateInstSelection(div); if(tool==='select') setTool('chair'); }; 
+    container.appendChild(div); 
+  }); 
 }
 
-function renderSVG() {
-    const svg = document.getElementById('svg-layer');
-    svg.innerHTML = '';
-    const groups = {};
-    state.elements.forEach(el => { if (el.gid && el.pts) groups[el.gid] = el.pts; });
+function renderPercList(){ 
+  const container=document.getElementById('list-perc'); 
+  PERC_LIST.forEach(l=>{ 
+    const div=document.createElement('div'); 
+    div.className='inst'; 
+    div.innerHTML=`<span style="width:10px;height:10px;background:#2a4a8a;border-radius:2px"></span>${l}`; 
+    div.onclick=()=>{ 
+      updateInstSelection(div); 
+      // パーカッションは常にラベル形式（楽器名入り）で生成
+      addElem('label',400,300,{text:l, color:"#2a4a8a", w:50, h:24}); 
+      setTool('select'); 
+    }; 
+    container.appendChild(div); 
+  }); 
+}
 
-    Object.keys(groups).forEach(gid => {
-        const p = groups[gid];
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        path.setAttribute('d', `M ${p[0].x} ${p[0].y} Q ${p[2].x} ${p[2].y} ${p[1].x} ${p[1].y}`);
-        path.setAttribute('stroke', 'rgba(29, 158, 117, 0.3)');
-        path.setAttribute('fill', 'none'); path.setAttribute('stroke-dasharray', '5,5'); path.setAttribute('stroke-width', '20');
-        path.style.cursor = 'move'; path.style.pointerEvents = 'auto';
-        path.onpointerdown = (e) => {
-            if (state.currentTool !== 'select') return;
-            e.stopPropagation();
-            const rect = document.getElementById('stage').getBoundingClientRect();
-            dragSession = { type: 'group', gid: parseFloat(gid), ox: (e.clientX - rect.left)/state.zoom, oy: (e.clientY - rect.top)/state.zoom, originalPts: JSON.parse(JSON.stringify(p)) };
-        };
-        svg.appendChild(path);
-    });
+function updateInstSelection(el){ document.querySelectorAll('.inst').forEach(e=>e.style.background=''); el.style.background='#e1f5ee'; }
+function switchTab(t){ ['main','other','perc'].forEach(k=>{ document.getElementById(`list-${k}`).style.display=t===k?'block':'none'; document.getElementById(`tab-${k}-btn`).className='tab '+(t===k?'active':''); }); }
 
-    if (state.currentTool === 'arc' && state.tempPoints.length > 0) {
-        const guide = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        const p = state.tempPoints;
-        const rect = document.getElementById('stage').getBoundingClientRect();
-        const mx = (window.lastX - rect.left) / state.zoom || p[0].x;
-        const my = (window.lastY - rect.top) / state.zoom || p[0].y;
-        let d = `M ${p[0].x} ${p[0].y}`;
-        if (p.length === 1) d += ` L ${mx} ${my}`;
-        else if (p.length === 2) d += ` Q ${mx} ${my} ${p[1].x} ${p[1].y}`;
-        guide.setAttribute('d', d); guide.setAttribute('stroke', 'var(--primary)'); guide.setAttribute('fill', 'none'); guide.setAttribute('stroke-width', '2');
-        svg.appendChild(guide);
+function setTool(t){ tool=t; arcPts=[]; linePts=[]; dimPts=[]; refreshSVG(); document.querySelectorAll('button[id^=btn-]').forEach(b=>b.classList.remove('active')); document.getElementById('btn-'+t)?.classList.add('active'); updateHint(); updateGuide(); }
+function syncZoom(val, src){ zoomLevel=(src==='range')?parseFloat(val):parseFloat(val)/100; document.getElementById('zoom-num').value=Math.round(zoomLevel*100); document.getElementById('zoom-range').value=zoomLevel; document.getElementById('zoom-container').style.transform=`scale(${zoomLevel})`; }
+function syncSize(val, src){ currentChairSize=parseInt(val); if(src==='range') document.getElementById('size-num').value=val; else document.getElementById('size-range').value=val; }
+
+function saveHistory(){
+  const s=JSON.stringify({elements:elements.map(e=>({type:e.type,x:e.x,y:e.y,w:e.w,h:e.h,angle:e.angle,color:e.color,label:e.label,text:e.text,bw:e.bw,gid:e.gid,pathType:e.pathType,pathPts:e.pathPts,pathT:e.pathT}))});
+  history=history.slice(0,historyIndex+1); history.push(s); if(history.length>50)history.shift(); else historyIndex++;
+  updateHistoryButtons();
+}
+function undo(){ if(historyIndex>0){ historyIndex--; applyState(); } }
+function redo(){ if(historyIndex<history.length-1){ historyIndex++; applyState(); } }
+function applyState(){
+  const s=JSON.parse(history[historyIndex]); elements.forEach(e=>e.dom.remove()); elements=[];
+  s.elements.forEach(en=>addElem(en.type,en.x,en.y,en)); clearSelection(); updateHistoryButtons(); refreshSVG();
+}
+function updateHistoryButtons(){ document.getElementById('undo-btn').disabled=(historyIndex<=0); document.getElementById('redo-btn').disabled=(historyIndex>=history.length-1); }
+
+function addElem(type,x,y,opts={}){
+  const id=opts.id||++idCounter;
+  const div=document.createElement('div');
+  div.className='elem'; div.dataset.id=id;
+  div.style.left=x+'px'; div.style.top=y+'px';
+  
+  // UI Slim Adjustment: Label and Rect sizes
+  let w = opts.w || (type==='chair'?currentChairSize:(type==='label'?50:60));
+  let h = opts.h || (type==='chair'?currentChairSize:(type==='label'?24:40));
+  
+  const ang=opts.angle||0, color=opts.color||(type==='chair'?currentInst.c:'#555');
+  div.style.width=w+'px'; div.style.height=h+'px'; div.style.transform=`rotate(${ang}deg)`;
+  
+  if(type==='chair'){
+    div.innerHTML=`<div class="chair" style="border-color:${color};color:${color}"><div class="chair-text" style="font-size:${w/3.2}px">${opts.label||currentInst.l}</div></div>`;
+  } else if(type==='dim'){
+    div.className='elem dim-elem'; div.innerHTML=`<div class="dim-line" style="width:${w}px;transform:rotate(${ang}deg)"></div><div class="dim-text" style="left:${w/2}px">${opts.text}</div>`;
+  } else {
+    div.className+=(type==='label'?' label-elem':' rect-elem');
+    div.style.borderColor=color; div.style.color=color; div.style.borderWidth=(opts.bw||1.5)+'px'; div.textContent=opts.text||'';
+    ['nw','se','rot'].forEach(p=>{ const h=document.createElement('div'); h.className='handle '+p; if(p!=='rot') h.dataset.pos=p; div.appendChild(h); });
+  }
+  if(opts.gid) div.classList.add('grouped-member');
+  stage.appendChild(div);
+  const rec={id,type,dom:div,x,y,w,h,angle:ang,color,label:opts.label||'',text:opts.text||'',bw:opts.bw||1.5,gid:opts.gid||null,pathType:opts.pathType||null,pathPts:opts.pathPts||null,pathT:opts.pathT!==undefined?opts.pathT:null};
+  elements.push(rec); return rec;
+}
+
+function getPosOnPath(type,pts,t){
+  if(type==='arc'){
+    const [p1,p2,p3]=pts;
+    const x=Math.pow(1-t,2)*p1.x+2*(1-t)*t*p3.x+Math.pow(t,2)*p2.x;
+    const y=Math.pow(1-t,2)*p1.y+2*(1-t)*t*p3.y+Math.pow(t,2)*p2.y;
+    return {x,y};
+  } else if(type==='line'){
+    const [p1,p2]=pts;
+    return {x:p1.x+(p2.x-p1.x)*t, y:p1.y+(p2.y-p1.y)*t};
+  }
+  return null;
+}
+
+function handleArc(pt){ arcPts.push(pt); updateGuide(); if(arcPts.length===3){ const n=prompt("椅子の数",4); if(n){ const pts=[...arcPts]; const gid=++gCounter; for(let i=0;i<n;i++){ const t=i/(n-1||1); const pos=getPosOnPath('arc',pts,t); addElem('chair',pos.x-currentChairSize/2,pos.y-currentChairSize/2,{gid,pathType:'arc',pathPts:pts,pathT:t}); } saveHistory(); refreshSVG(); } arcPts=[]; updateGuide(); } }
+function handleLine(pt){ const last=linePts[linePts.length-1], finalPt=last?snap(last,pt):pt; linePts.push(finalPt); updateGuide(); if(linePts.length===2){ const n=prompt("椅子の数",4); if(n){ const pts=[...linePts]; const gid=++gCounter; for(let i=0;i<n;i++){ const t=i/(n-1||1); const pos=getPosOnPath('line',pts,t); addElem('chair',pos.x-currentChairSize/2,pos.y-currentChairSize/2,{gid,pathType:'line',pathPts:pts,pathT:t}); } saveHistory(); refreshSVG(); } linePts=[]; updateGuide(); } }
+
+function onDown(e){
+  let pt=getXY(e);
+  // Handle interaction
+  if(e.target.classList.contains('handle')){
+    const rec=elements.find(el=>el.dom===e.target.parentElement);
+    if(e.target.classList.contains('rot')){ rotatingObj=rec; const c={x:rec.x+rec.w/2, y:rec.y+rec.h/2}; startMouseAng=Math.atan2(pt.y-c.y, pt.x-c.x); startAng=rec.angle||0; }
+    else { resizingObj=rec; resizeHandle=e.target.dataset.pos; }
+    e.stopPropagation(); return;
+  }
+  
+  // Clicked on SVG (Arc/Line Guideline)
+  if(e.target.tagName === 'path' || e.target.tagName === 'line'){
+    const gid = parseInt(e.target.dataset.gid);
+    if(gid){
+      const group = elements.filter(el => el.gid === gid);
+      clearSelection();
+      group.forEach(el => { el.dom.classList.add('selected'); selectedList.push(el); });
+      draggingObjs = selectedList.map(o => ({obj:o, ox:pt.x-o.x, oy:pt.y-o.y}));
+      updateProps();
+      return;
     }
+  }
+
+  const ed=e.target.closest('.elem');
+  if(ed){
+    const rec=elements.find(el=>el.id==ed.dataset.id);
+    if(tool==='select'){
+      if(e.shiftKey) toggleSelect(rec); else if(!selectedList.includes(rec)) selectSingle(rec);
+      draggingObjs = selectedList.map(o => ({obj:o, ox:pt.x-o.x, oy:pt.y-o.y}));
+    }
+    return;
+  }
+  
+  // Start Selection Box (iPad/PC)
+  if(tool==='select'){
+    clearSelection();
+    isSelecting = true;
+    selectStart = pt;
+    const box = document.getElementById('selection-box');
+    box.style.display = 'block';
+    box.style.left = pt.x + 'px';
+    box.style.top = pt.y + 'px';
+    box.style.width = '0';
+    box.style.height = '0';
+  }
+  else if(tool==='chair') addElem('chair',pt.x-currentChairSize/2,pt.y-currentChairSize/2);
+  else if(tool==='label') addElem('label',pt.x-25,pt.y-12,{text:prompt('内容','')||'ラベル', color:"#2a4a8a"});
+  else if(tool==='rect') addElem('rect',pt.x-30,pt.y-20);
+  else if(tool==='arc') handleArc(pt);
+  else if(tool==='line') handleLine(pt);
+  else if(tool==='dim') handleDim(pt);
 }
 
-// --- 3. Interaction Handlers ---
-function setupEvents() {
-    const stage = document.getElementById('stage');
-    stage.onpointerdown = (e) => {
-        const rect = stage.getBoundingClientRect();
-        const x = (e.clientX - rect.left) / state.zoom;
-        const y = (e.clientY - rect.top) / state.zoom;
-
-        if (state.currentTool === 'chair') {
-            addElement('chair', x - 13, y - 13);
-        } else if (state.currentTool === 'arc') {
-            state.tempPoints.push({x, y});
-            if (state.tempPoints.length === 3) {
-                const n = parseInt(prompt("椅子の数", "5"));
-                if (n) {
-                    const gid = Date.now();
-                    for (let i = 0; i < n; i++) {
-                        const t = n > 1 ? i / (n - 1) : 0.5;
-                        const pos = getPointOnArc(state.tempPoints, t);
-                        state.elements.push({ id: Math.random(), type: 'chair', x: pos.x-13, y: pos.y-13, w:26, h:26, color: currentInst.c, label: currentInst.l, gid, pts: JSON.parse(JSON.stringify(state.tempPoints)), t });
-                    }
-                    saveHistory();
-                }
-                state.tempPoints = [];
-            }
-            render();
-        } else if (state.currentTool === 'select' && (e.target.id === 'stage' || e.target.id === 'elements-layer')) {
-            state.selectedIds = [];
-            boxStart = { x, y };
-            document.getElementById('selection-box').style.display = 'block';
-            render();
-        } else if (state.currentTool === 'label') {
-            const txt = prompt("テキストを入力", "Label");
-            if(txt) addElement('label', x, y, { label: txt, w: 80, h: 30 });
-        } else if (state.currentTool === 'rect') {
-            addElement('rect', x, y, { w: 100, h: 60, label: '', color: '#999' });
+function onMove(e){
+  let pt=getXY(e);
+  if(isSelecting){
+    const box = document.getElementById('selection-box');
+    const x = Math.min(pt.x, selectStart.x), y = Math.min(pt.y, selectStart.y);
+    const w = Math.abs(pt.x - selectStart.x), h = Math.abs(pt.y - selectStart.y);
+    box.style.left = x + 'px'; box.style.top = y + 'px'; box.style.width = w + 'px'; box.style.height = h + 'px';
+    // Live selection check
+    elements.forEach(el => {
+      const inBox = (el.x > x && el.x + el.w < x + w && el.y > y && el.y + el.h < y + h);
+      if(inBox && !selectedList.includes(el)) { el.dom.classList.add('selected'); selectedList.push(el); }
+    });
+  }
+  if(draggingObjs.length){
+    draggingObjs.forEach(d=>{
+      if(d.obj.pathType && d.obj.pathPts && draggingObjs.length === 1){
+        // Individual slide on rail
+        const pts=d.obj.pathPts;
+        let bestT=0, minDist=999999;
+        for(let i=0; i<=100; i++){
+          const testT = i/100;
+          const p = getPosOnPath(d.obj.pathType, pts, testT);
+          const dist = (p.x-pt.x)**2 + (p.y-pt.y)**2;
+          if(dist < minDist){ minDist = dist; bestT = testT; }
         }
-    };
-
-    window.onpointermove = (e) => {
-        window.lastX = e.clientX; window.lastY = e.clientY;
-        const rect = stage.getBoundingClientRect();
-        const x = (e.clientX - rect.left) / state.zoom;
-        const y = (e.clientY - rect.top) / state.zoom;
-
-        if (dragSession) {
-            if (dragSession.type === 'elem') {
-                dragSession.group.forEach(g => { g.el.x = x - g.ox; g.el.y = y - g.oy; if(g.el.gid) delete g.el.gid; });
-            } else if (dragSession.type === 'group') {
-                const dx = x - dragSession.ox, dy = y - dragSession.oy;
-                const newPts = dragSession.originalPts.map(p => ({ x: p.x + dx, y: p.y + dy }));
-                state.elements.forEach(el => { if (el.gid === dragSession.gid) { el.pts = newPts; const pos = getPointOnArc(newPts, el.t); el.x = pos.x - el.w/2; el.y = pos.y - el.h/2; } });
-            }
-            render();
-        } else if (boxStart) {
-            const x1 = Math.min(boxStart.x, x), y1 = Math.min(boxStart.y, y);
-            const x2 = Math.max(boxStart.x, x), y2 = Math.max(boxStart.y, y);
-            const sb = document.getElementById('selection-box');
-            sb.style.left = x1+'px'; sb.style.top = y1+'px'; sb.style.width = (x2-x1)+'px'; sb.style.height = (y2-y1)+'px';
-            state.selectedIds = state.elements.filter(el => el.x > x1 && el.x < x2 && el.y > y1 && el.y < y2).map(el => el.id);
-            render();
-        } else if (state.currentTool === 'arc') { renderSVG(); }
-    };
-
-    window.onpointerup = () => { if (dragSession || boxStart) saveHistory(); dragSession = null; boxStart = null; document.getElementById('selection-box').style.display = 'none'; };
-}
-
-function handleElementDown(e, el) {
-    e.stopPropagation();
-    if (state.currentTool !== 'select') return;
-    if (!e.shiftKey && !state.selectedIds.includes(el.id)) state.selectedIds = [el.id];
-    else if (e.shiftKey) state.selectedIds.push(el.id);
-    const rect = document.getElementById('stage').getBoundingClientRect();
-    const x = (e.clientX - rect.left) / state.zoom;
-    const y = (e.clientY - rect.top) / state.zoom;
-    dragSession = { type: 'elem', group: state.elements.filter(item => state.selectedIds.includes(item.id)).map(item => ({ el: item, ox: x - item.x, oy: y - item.y })) };
-    render();
-}
-
-// --- 4. Sidebar & Properties ---
-function initSidebar() {
-    const sb = document.getElementById('sidebar');
-    sb.innerHTML = `<div style="display:flex;"><div class="tab active" onclick="switchTab('woodwind')" id="t-woodwind">木管</div><div class="tab" onclick="switchTab('brass')" id="t-brass">金管</div><div class="tab" onclick="switchTab('perc')" id="t-perc">打楽</div></div><div id="inst-cont" style="flex:1; overflow-y:auto; background:white;"></div>`;
-    switchTab('woodwind');
-}
-
-function switchTab(cat) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.getElementById(`t-${cat}`).classList.add('active');
-    const cont = document.getElementById('inst-cont');
-    cont.innerHTML = '';
-    INSTRUMENTS[cat].forEach(inst => {
-        const div = document.createElement('div');
-        div.style.cssText = "padding:12px; cursor:pointer; border-bottom:1px solid #f0f0f0; font-size:13px; display:flex; align-items:center; gap:8px;";
-        div.innerHTML = `<span style="width:12px; height:12px; background:${inst.c}; border-radius:50%;"></span>${inst.l}`;
-        div.onclick = () => { currentInst = inst; setTool('chair'); };
-        cont.appendChild(div);
+        d.obj.pathT = bestT;
+        const pos = getPosOnPath(d.obj.pathType, pts, bestT);
+        d.obj.x = pos.x - d.obj.w/2; d.obj.y = pos.y - d.obj.h/2;
+      } else {
+        // Group or free move
+        d.obj.x=pt.x-d.ox; d.obj.y=pt.y-d.oy;
+        // If part of path group, update path origin (optional, for whole group movement)
+        if(d.obj.pathPts && draggingObjs.length > 1){
+           // pathPts updates would be here if we want to move the "rail" with the group
+        }
+      }
+      d.obj.dom.style.left=d.obj.x+'px'; d.obj.dom.style.top=d.obj.y+'px';
     });
+  }
+  if(resizingObj){ const r=resizingObj; if(resizeHandle==='se'){ r.w=Math.max(20,pt.x-r.x); r.h=Math.max(20,pt.y-r.y); } else if(resizeHandle==='nw'){ const or=r.x+r.w, ob=r.y+r.h; r.x=pt.x; r.y=pt.y; r.w=Math.max(20,or-pt.x); r.h=Math.max(20,ob-pt.y); } r.dom.style.left=r.x+'px'; r.dom.style.top=r.y+'px'; r.dom.style.width=r.w+'px'; r.dom.style.height=r.h+'px'; }
+  if(rotatingObj){ const r=rotatingObj, c={x:r.x+r.w/2, y:r.y+r.h/2}; let a=startAng+(Math.atan2(pt.y-c.y, pt.x-c.x)-startMouseAng)*180/Math.PI; if(isShift) a=Math.round(a/45)*45; r.angle=a; r.dom.style.transform=`rotate(${r.angle}deg)`; }
+  drawPreviews(pt);
 }
 
-function updatePropertyUI() {
-    const propBar = document.getElementById('prop-bar');
-    if (state.selectedIds.length === 0) { propBar.innerHTML = "要素を選択して編集"; return; }
-    const el = state.elements.find(e => e.id === state.selectedIds[0]);
-    propBar.innerHTML = `
-        ラベル: <input type="text" id="p-label" value="${el.label}" style="width:70px">
-        色: <input type="color" id="p-color" value="${el.color}">
-        W: <input type="number" id="p-w" value="${el.w}" style="width:45px">
-        H: <input type="number" id="p-h" value="${el.h}" style="width:45px">
-    `;
-    document.getElementById('p-label').oninput = (e) => updateSelected('label', e.target.value);
-    document.getElementById('p-color').onchange = (e) => updateSelected('color', e.target.value);
-    document.getElementById('p-w').oninput = (e) => updateSelected('w', parseInt(e.target.value));
-    document.getElementById('p-h').oninput = (e) => updateSelected('h', parseInt(e.target.value));
+function onUp(){ 
+  if(draggingObjs.length||resizingObj||rotatingObj||isSelecting) saveHistory(); 
+  draggingObjs=[]; resizingObj=null; rotatingObj=null; isSelecting=false;
+  document.getElementById('selection-box').style.display = 'none';
+  updateProps();
 }
 
-function updateSelected(key, val) { state.elements.forEach(el => { if (state.selectedIds.includes(el.id)) { el[key] = val; if(el.gid) delete el.gid; } }); render(); }
+function selectSingle(r){ clearSelection(); selectedList=[r]; r.dom.classList.add('selected'); updateProps(); }
+function toggleSelect(r){ if(selectedList.includes(r)) { r.dom.classList.remove('selected'); selectedList=selectedList.filter(x=>x!==r); } else { r.dom.classList.add('selected'); selectedList.push(r); } updateProps(); }
+function clearSelection(){ selectedList.forEach(r=>r.dom.classList.remove('selected')); selectedList=[]; updateProps(); }
 
-// --- 5. Features (PDF, Risers, Export) ---
-async function loadPDF(file) {
-    if(!file) return;
-    const reader = new FileReader();
-    reader.onload = async function() {
-        const pdf = await pdfjsLib.getDocument({data: new Uint8Array(this.result)}).promise;
-        const page = await pdf.getPage(1);
-        const canvas = document.getElementById('pdf-canvas');
-        const viewport = page.getViewport({scale: 2.0});
-        canvas.width = viewport.width; canvas.height = viewport.height;
-        document.getElementById('stage').style.width = viewport.width + 'px';
-        document.getElementById('stage').style.height = viewport.height + 'px';
-        await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
-    };
-    reader.readAsArrayBuffer(file);
+function deleteSelected(){ 
+  if(selectedList.length === 0) return;
+  const targets = [...selectedList];
+  targets.forEach(t=>{ t.dom.remove(); elements=elements.filter(e=>e.id!==t.id); });
+  clearSelection(); saveHistory(); refreshSVG();
 }
 
-function createRisers() {
-    const baseW = 800, baseH = 120;
-    const colors = ['#eee', '#ddd', '#ccc'];
-    for(let i=0; i<3; i++) {
-        addElement('rect', 100, 50 + (i*baseH), { w: baseW, h: baseH, color: colors[i], label: (3-i)+'段' });
+function updateProps(){
+  const p=document.getElementById('props'); if(!selectedList.length){ p.textContent='要素を選択して編集'; return; }
+  const s=selectedList[0];
+  let h=`<button onclick="clearSelection()" style="background:#eee;">解除</button> <button class="btn-del" onclick="deleteSelected()">削除</button> `;
+  if(s.type!=='chair' && s.type!=='dim'){ h+=`色:<input type="color" value="${s.color}" oninput="updateSel('color',this.value)"> `; }
+  h+=`内容:<input type="text" value="${s.type==='chair'?s.label:s.text}" oninput="updateSel('${s.type==='chair'?'label':'text'}',this.value)">`;
+  p.innerHTML=h;
+}
+
+function updateSel(k,v){ selectedList.forEach(s=>{ s[k]=v; if(k==='color'){s.dom.style.color=v;s.dom.style.borderColor=v;} if(k==='label')s.dom.querySelector('.chair-text').textContent=v; if(k==='text'){ if(s.type==='dim') s.dom.querySelector('.dim-text').textContent=v; else { const hs=s.dom.querySelectorAll('.handle'); s.dom.textContent=v; hs.forEach(h=>s.dom.appendChild(h)); } } }); saveHistory(); }
+
+function setupEvents(){ 
+  stage.addEventListener('pointerdown',onDown); 
+  window.addEventListener('pointermove',onMove); 
+  window.addEventListener('pointerup',onUp); 
+  window.addEventListener('keydown', e=>{ 
+    if(e.key==='Shift') isShift=true; 
+    if(e.ctrlKey&&e.key==='z') undo(); 
+    if(e.ctrlKey&&e.key==='y') redo(); 
+    if(e.key==='Delete'||e.key==='Backspace') {
+       // input/textarea入力中は削除しない
+       if(document.activeElement.tagName !== 'INPUT') deleteSelected();
     }
+  }); 
+  window.addEventListener('keyup', e=>{ if(e.key==='Shift') isShift=false; }); 
 }
 
-// --- 6. Utilities ---
-function getPointOnArc(p, t) { return { x: Math.pow(1-t, 2)*p[0].x + 2*(1-t)*t*p[2].x + Math.pow(t, 2)*p[1].x, y: Math.pow(1-t, 2)*p[0].y + 2*(1-t)*t*p[2].y + Math.pow(t, 2)*p[1].y }; }
-function setTool(t) { state.currentTool = t; state.tempPoints = []; document.querySelectorAll('#toolbar button').forEach(b => b.classList.toggle('active', b.id === `tool-${t}`)); render(); }
-function addElement(type, x, y, opts = {}) { state.elements.push({ id: Math.random(), type, x, y, w: opts.w || 26, h: opts.h || 26, color: opts.color || currentInst.c, label: opts.label || currentInst.l, ...opts }); saveHistory(); render(); }
-function saveHistory() { state.history = state.history.slice(0, state.historyIndex + 1); state.history.push(JSON.stringify(state.elements)); state.historyIndex++; }
-function undo() { if (state.historyIndex > 0) { state.historyIndex--; state.elements = JSON.parse(state.history[state.historyIndex]); render(); } }
-function deleteSelected() { state.elements = state.elements.filter(el => !state.selectedIds.includes(el.id)); state.selectedIds = []; render(); saveHistory(); }
-function exportJSON() { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(state.elements)])); a.download = 'layout.json'; a.click(); }
-function exportPNG() { html2canvas(document.getElementById('stage')).then(c => { const a = document.createElement('a'); a.href = c.toDataURL(); a.download = 'layout.png'; a.click(); }); }
+function getXY(e){ const r=stage.getBoundingClientRect(); return {x:(e.clientX-r.left)/zoomLevel, y:(e.clientY-r.top)/zoomLevel}; }
+function snap(p1, p2) { if(!isShift) return p2; const dx=Math.abs(p2.x-p1.x), dy=Math.abs(p2.y-p1.y); return dx>dy?{x:p2.x,y:p1.y}:{x:p1.x,y:p2.y}; }
 
-window.onload = () => { setupEvents(); initSidebar(); render(); };
+function refreshSVG(){
+  svg.innerHTML='';
+  const gids=new Set();
+  elements.forEach(el=>{
+    if(el.gid && el.pathType && el.pathPts && !gids.has(el.gid)){
+      gids.add(el.gid);
+      if(el.pathType==='arc'){
+        const [p1,p2,p3]=el.pathPts;
+        const p=document.createElementNS('http://www.w3.org/2000/svg','path');
+        p.setAttribute('d',`M${p1.x},${p1.y} Q${p3.x},${p3.y} ${p2.x},${p2.y}`);
+        p.setAttribute('stroke','rgba(29,158,117,0.4)'); p.setAttribute('fill','none'); p.setAttribute('stroke-dasharray','5,5');
+        p.setAttribute('stroke-width', '10'); // Hit area
+        p.style.cursor = 'pointer'; p.style.pointerEvents = 'auto';
+        p.dataset.gid = el.gid;
+        svg.appendChild(p);
+      } else if(el.pathType==='line'){
+        const [p1,p2]=el.pathPts;
+        const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+        l.setAttribute('x1',p1.x); l.setAttribute('y1',p1.y); l.setAttribute('x2',p2.x); l.setAttribute('y2',p2.y);
+        l.setAttribute('stroke','rgba(29,158,117,0.4)'); l.setAttribute('stroke-dasharray','5,5');
+        l.setAttribute('stroke-width', '10');
+        l.style.cursor = 'pointer'; l.style.pointerEvents = 'auto';
+        l.dataset.gid = el.gid;
+        svg.appendChild(l);
+      }
+    }
+  });
+}
+
+function drawPreviews(pt){
+  refreshSVG();
+  if(arcPts.length===1) drawLine(arcPts[0],pt);
+  if(arcPts.length===2) {
+    const p=document.createElementNS('http://www.w3.org/2000/svg','path');
+    p.setAttribute('d',`M${arcPts[0].x},${arcPts[0].y} Q${pt.x},${pt.y} ${arcPts[1].x},${arcPts[1].y}`);
+    p.setAttribute('stroke','#1d9e75'); p.setAttribute('fill','none'); svg.appendChild(p);
+  }
+  if(linePts.length===1) drawLine(linePts[0], snap(linePts[0],pt));
+  if(dimPts.length===1) drawLine(dimPts[0], snap(dimPts[0],pt));
+}
+function drawLine(p1,p2){ const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',p1.x);l.setAttribute('y1',p1.y);l.setAttribute('x2',p2.x);l.setAttribute('y2',p2.y);l.setAttribute('stroke','#1d9e75');svg.appendChild(l); }
+
+function updateHint(){ const h=document.getElementById('hint-box'); let txt={select:"選択・ドラッグ移動。弧をクリックでグループ移動。背景ドラッグで範囲選択。",chair:"配置。",arc:"3点クリックで弧に沿って椅子を配置。",line:"2点クリックで直線に沿って椅子を配置。",label:"クリックしてラベル配置。",rect:"四角形を配置。",dim:"2点間の距離を計測。"}[tool]; h.innerHTML=`💡 ヒント: ${txt}`; }
+function updateGuide(){ const g=document.getElementById('guide-panel'); if(!['arc','line','dim'].includes(tool)){ g.style.display='none'; return; } g.style.display='block'; const steps={arc:['始点','終点','頂点（膨らみ）'],line:['始点','終点'],dim:['始点','終点']}[tool]; const cur=(tool==='arc'?arcPts:tool==='line'?linePts:dimPts).length; document.getElementById('guide-title').textContent={arc:'⌒ 弧配置',line:'｜ 線配置',dim:'↔ 寸法'}[tool]; document.getElementById('guide-steps').innerHTML=steps.map((s,i)=>`<div class="step ${i===cur?'active':''}"><span class="step-num">${i+1}</span>${s}</div>`).join(''); }
+
+// Data Management
+function exportTemplate(){ const d=JSON.stringify({elements:elements.map(e=>({type:e.type,x:e.x,y:e.y,w:e.w,h:e.h,angle:e.angle,color:e.color,label:e.label,text:e.text,bw:e.bw,gid:e.gid,pathType:e.pathType,pathPts:e.pathPts,pathT:e.pathT}))}); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([d],{type:'application/json'})); a.download='stage_v20.json'; a.click(); }
+function importTemplate(){ const i=document.createElement('input'); i.type='file'; i.onchange=async e=>{ const d=JSON.parse(await e.target.files[0].text()); elements.forEach(el=>el.dom.remove()); elements=[]; d.elements.forEach(en=>addElem(en.type,en.x,en.y,en)); saveHistory(); refreshSVG(); }; i.click(); }
+async function loadPDF(){ const i=document.createElement('input'); i.type='file'; i.accept='.pdf'; i.onchange=async e=>{ const d=new Uint8Array(await e.target.files[0].arrayBuffer()); pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; const pdf=await pdfjsLib.getDocument({data:d}).promise; const page=await pdf.getPage(1); const vp=page.getViewport({scale:1.5}); const cv=document.getElementById('bg'); cv.width=vp.width; cv.height=vp.height; stage.style.width=vp.width+'px'; stage.style.height=vp.height+'px'; await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise; cv.style.display='block'; }; i.click(); }
+function exportPNG(){ const prev=svg.innerHTML; refreshSVG(); html2canvas(stage,{scale:2}).then(c=>{ const a=document.createElement('a'); a.download='stage_v20.png'; a.href=c.toDataURL(); a.click(); }); }
+function resetCanvas(){ if(confirm("全て消去しますか？")){ elements.forEach(e=>e.dom.remove()); elements=[]; saveHistory(); refreshSVG(); } }
+
+window.onload=init;
 </script>
 </body>
 </html>
