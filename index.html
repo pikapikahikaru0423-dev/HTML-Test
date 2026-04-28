@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stage Layout Maker v21.1</title>
+    <title>Stage Layout Maker v22.0 (Full Specs)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
@@ -11,26 +11,31 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; background: var(--bg); overflow: hidden; touch-action: none; }
 
+        /* UI Structure */
         #toolbar { height: 50px; background: white; border-bottom: 1px solid #ccc; display: flex; align-items: center; padding: 0 12px; gap: 8px; z-index: 100; flex-shrink: 0; overflow-x: auto; }
-        #main-content { display: flex; flex: 1; overflow: hidden; }
-        #sidebar { width: var(--sidebar-w); background: white; border-right: 1px solid #ccc; display: flex; flex-direction: column; flex-shrink: 0; }
-        #canvas-area { flex: 1; overflow: auto; position: relative; background: #bbb; padding: 80px; }
+        #main-content { display: flex; flex: 1; overflow: hidden; position: relative; }
+        #sidebar { width: var(--sidebar-w); background: white; border-right: 1px solid #ccc; display: flex; flex-direction: column; flex-shrink: 0; z-index: 50; }
+        #canvas-area { flex: 1; overflow: auto; position: relative; background: #bbb; padding: 80px; scroll-behavior: smooth; }
         
+        /* Canvas Layers */
         #zoom-layer { transform-origin: top left; }
         #stage { position: relative; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
         #pdf-canvas { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
         #svg-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; overflow: visible; }
         #elements-layer { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
         
+        /* Elements */
         .elem { position: absolute; display: flex; align-items: center; justify-content: center; cursor: move; pointer-events: auto; font-weight: bold; font-size: 11px; text-align: center; }
         .elem.selected { outline: 3px solid var(--primary); outline-offset: 4px; z-index: 100 !important; }
         .chair { border-radius: 50%; border: 2px solid; background: white; }
         .rect { border: 2px solid; background: rgba(200,200,200,0.1); }
         .label { border: 1px solid transparent; background: transparent; }
 
+        /* Utility */
         #selection-box { position: absolute; border: 1px solid var(--primary); background: rgba(29,158,117,0.1); pointer-events: none; display: none; z-index: 200; }
+        #prop-bar { height: 50px; background: white; border-top: 1px solid #ccc; display: flex; align-items: center; padding: 0 20px; gap: 15px; font-size: 12px; z-index: 300; }
         
-        button { padding: 6px 12px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: white; font-size: 12px; }
+        button { padding: 6px 12px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: white; font-size: 12px; white-space: nowrap; }
         button.active { background: var(--primary); color: white; border-color: var(--primary); font-weight: bold; }
         .tab { flex: 1; padding: 10px 2px; text-align: center; font-size: 11px; cursor: pointer; border-bottom: 1px solid #ccc; background: #f0f0f0; color: #666; }
         .tab.active { background: white; border-bottom: 2px solid var(--primary); color: var(--primary); font-weight: bold; }
@@ -38,36 +43,40 @@
 </head>
 <body>
 
-<div id="app-container" style="display:flex; flex-direction:column; height:100vh;">
-    <div id="toolbar">
-        <button id="tool-select" class="active" onclick="setTool('select')">選択</button>
-        <button id="tool-chair" onclick="setTool('chair')">椅子</button>
-        <button id="tool-arc" onclick="setTool('arc')">弧配置</button>
-        <button id="tool-label" onclick="setTool('label')">ラベル</button>
-        <button id="tool-rect" onclick="setTool('rect')">四角</button>
-        <div style="width:1px; height:20px; background:#ccc; margin:0 5px;"></div>
-        <button onclick="undo()">Undo</button>
-        <button onclick="deleteSelected()" style="color:var(--accent)">削除</button>
-        <button onclick="exportJSON()">保存</button>
-    </div>
+<div id="toolbar">
+    <button id="tool-select" class="active" onclick="setTool('select')">選択</button>
+    <button id="tool-chair" onclick="setTool('chair')">椅子</button>
+    <button id="tool-arc" onclick="setTool('arc')">弧配置</button>
+    <button id="tool-label" onclick="setTool('label')">ラベル</button>
+    <button id="tool-rect" onclick="setTool('rect')">四角</button>
+    <div style="width:1px; height:20px; background:#ccc; margin:0 5px;"></div>
+    <button onclick="undo()">Undo</button>
+    <button onclick="deleteSelected()" style="color:var(--accent)">削除</button>
+    <button onclick="createRisers()">層 ひな壇</button>
+    <button onclick="document.getElementById('pdf-input').click()">📂 PDF</button>
+    <button onclick="exportJSON()">💾 保存</button>
+    <button onclick="exportPNG()" style="background:var(--primary); color:white;">📷 出力</button>
+    <input type="file" id="pdf-input" accept="application/pdf" style="display:none" onchange="loadPDF(this.files[0])">
+</div>
 
-    <div id="main-content">
-        <div id="sidebar"></div>
-        <div id="canvas-area">
-            <div id="zoom-layer">
-                <div id="stage" style="width: 1000px; height: 750px;">
-                    <canvas id="pdf-canvas"></canvas>
-                    <svg id="svg-layer"></svg>
-                    <div id="elements-layer"></div>
-                    <div id="selection-box"></div>
-                </div>
+<div id="main-content">
+    <div id="sidebar"></div>
+    <div id="canvas-area">
+        <div id="zoom-layer">
+            <div id="stage" style="width: 1000px; height: 750px;">
+                <canvas id="pdf-canvas"></canvas>
+                <svg id="svg-layer"></svg>
+                <div id="elements-layer"></div>
+                <div id="selection-box"></div>
             </div>
         </div>
     </div>
 </div>
 
+<div id="prop-bar">要素を選択して編集</div>
+
 <script>
-// --- State ---
+// --- 1. State Management ---
 let state = {
     elements: [],
     selectedIds: [],
@@ -88,15 +97,16 @@ const INSTRUMENTS = {
         {l:"Euph", c:"#08a"}, {l:"Tu", c:"#08a"}, {l:"St.B", c:"#08a"}
     ],
     perc: [
-        {l:"Timpani", c:"#555"}, {l:"S.D.", c:"#555"}, {l:"B.D.", c:"#555"}, 
-        {l:"Cymbals", c:"#555"}, {l:"Glocken", c:"#555"}, {l:"Xylo", c:"#555"}
+        {l:"Timps", c:"#555"}, {l:"S.D.", c:"#555"}, {l:"B.D.", c:"#555"}, 
+        {l:"Cym", c:"#555"}, {l:"Glock", c:"#555"}, {l:"Xylo", c:"#555"}, {l:"Vibe", c:"#555"}
     ]
 };
+
 let currentInst = INSTRUMENTS.woodwind[0];
 let dragSession = null;
 let boxStart = null;
 
-// --- Core Logic ---
+// --- 2. Core Render ---
 function render() {
     const layer = document.getElementById('elements-layer');
     layer.innerHTML = '';
@@ -109,6 +119,7 @@ function render() {
         layer.appendChild(div);
     });
     renderSVG();
+    updatePropertyUI();
 }
 
 function renderSVG() {
@@ -121,8 +132,8 @@ function renderSVG() {
         const p = groups[gid];
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         path.setAttribute('d', `M ${p[0].x} ${p[0].y} Q ${p[2].x} ${p[2].y} ${p[1].x} ${p[1].y}`);
-        path.setAttribute('stroke', 'rgba(29, 158, 117, 0.4)');
-        path.setAttribute('fill', 'none'); path.setAttribute('stroke-dasharray', '5,5'); path.setAttribute('stroke-width', '15');
+        path.setAttribute('stroke', 'rgba(29, 158, 117, 0.3)');
+        path.setAttribute('fill', 'none'); path.setAttribute('stroke-dasharray', '5,5'); path.setAttribute('stroke-width', '20');
         path.style.cursor = 'move'; path.style.pointerEvents = 'auto';
         path.onpointerdown = (e) => {
             if (state.currentTool !== 'select') return;
@@ -147,19 +158,7 @@ function renderSVG() {
     }
 }
 
-function handleElementDown(e, el) {
-    e.stopPropagation();
-    if (state.currentTool !== 'select') return;
-    if (!e.shiftKey && !state.selectedIds.includes(el.id)) state.selectedIds = [el.id];
-    else if (e.shiftKey) state.selectedIds.push(el.id);
-    const rect = document.getElementById('stage').getBoundingClientRect();
-    const x = (e.clientX - rect.left) / state.zoom;
-    const y = (e.clientY - rect.top) / state.zoom;
-    dragSession = { type: 'elem', group: state.elements.filter(item => state.selectedIds.includes(item.id)).map(item => ({ el: item, ox: x - item.x, oy: y - item.y })) };
-    render();
-}
-
-// --- Events ---
+// --- 3. Interaction Handlers ---
 function setupEvents() {
     const stage = document.getElementById('stage');
     stage.onpointerdown = (e) => {
@@ -191,10 +190,10 @@ function setupEvents() {
             document.getElementById('selection-box').style.display = 'block';
             render();
         } else if (state.currentTool === 'label') {
-            const txt = prompt("テキスト", "Label");
+            const txt = prompt("テキストを入力", "Label");
             if(txt) addElement('label', x, y, { label: txt, w: 80, h: 30 });
         } else if (state.currentTool === 'rect') {
-            addElement('rect', x, y, { w: 100, h: 60, label: '' });
+            addElement('rect', x, y, { w: 100, h: 60, label: '', color: '#999' });
         }
     };
 
@@ -226,12 +225,25 @@ function setupEvents() {
     window.onpointerup = () => { if (dragSession || boxStart) saveHistory(); dragSession = null; boxStart = null; document.getElementById('selection-box').style.display = 'none'; };
 }
 
-// --- Sidebar ---
+function handleElementDown(e, el) {
+    e.stopPropagation();
+    if (state.currentTool !== 'select') return;
+    if (!e.shiftKey && !state.selectedIds.includes(el.id)) state.selectedIds = [el.id];
+    else if (e.shiftKey) state.selectedIds.push(el.id);
+    const rect = document.getElementById('stage').getBoundingClientRect();
+    const x = (e.clientX - rect.left) / state.zoom;
+    const y = (e.clientY - rect.top) / state.zoom;
+    dragSession = { type: 'elem', group: state.elements.filter(item => state.selectedIds.includes(item.id)).map(item => ({ el: item, ox: x - item.x, oy: y - item.y })) };
+    render();
+}
+
+// --- 4. Sidebar & Properties ---
 function initSidebar() {
     const sb = document.getElementById('sidebar');
     sb.innerHTML = `<div style="display:flex;"><div class="tab active" onclick="switchTab('woodwind')" id="t-woodwind">木管</div><div class="tab" onclick="switchTab('brass')" id="t-brass">金管</div><div class="tab" onclick="switchTab('perc')" id="t-perc">打楽</div></div><div id="inst-cont" style="flex:1; overflow-y:auto; background:white;"></div>`;
     switchTab('woodwind');
 }
+
 function switchTab(cat) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.getElementById(`t-${cat}`).classList.add('active');
@@ -239,21 +251,65 @@ function switchTab(cat) {
     cont.innerHTML = '';
     INSTRUMENTS[cat].forEach(inst => {
         const div = document.createElement('div');
-        div.style.padding = '12px'; div.style.cursor = 'pointer'; div.style.borderBottom = '1px solid #f0f0f0'; div.style.fontSize = '13px';
-        div.innerHTML = `<span style="display:inline-block; width:12px; height:12px; background:${inst.c}; border-radius:50%; margin-right:8px;"></span>${inst.l}`;
+        div.style.cssText = "padding:12px; cursor:pointer; border-bottom:1px solid #f0f0f0; font-size:13px; display:flex; align-items:center; gap:8px;";
+        div.innerHTML = `<span style="width:12px; height:12px; background:${inst.c}; border-radius:50%;"></span>${inst.l}`;
         div.onclick = () => { currentInst = inst; setTool('chair'); };
         cont.appendChild(div);
     });
 }
 
-// --- Utils ---
+function updatePropertyUI() {
+    const propBar = document.getElementById('prop-bar');
+    if (state.selectedIds.length === 0) { propBar.innerHTML = "要素を選択して編集"; return; }
+    const el = state.elements.find(e => e.id === state.selectedIds[0]);
+    propBar.innerHTML = `
+        ラベル: <input type="text" id="p-label" value="${el.label}" style="width:70px">
+        色: <input type="color" id="p-color" value="${el.color}">
+        W: <input type="number" id="p-w" value="${el.w}" style="width:45px">
+        H: <input type="number" id="p-h" value="${el.h}" style="width:45px">
+    `;
+    document.getElementById('p-label').oninput = (e) => updateSelected('label', e.target.value);
+    document.getElementById('p-color').onchange = (e) => updateSelected('color', e.target.value);
+    document.getElementById('p-w').oninput = (e) => updateSelected('w', parseInt(e.target.value));
+    document.getElementById('p-h').oninput = (e) => updateSelected('h', parseInt(e.target.value));
+}
+
+function updateSelected(key, val) { state.elements.forEach(el => { if (state.selectedIds.includes(el.id)) { el[key] = val; if(el.gid) delete el.gid; } }); render(); }
+
+// --- 5. Features (PDF, Risers, Export) ---
+async function loadPDF(file) {
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = async function() {
+        const pdf = await pdfjsLib.getDocument({data: new Uint8Array(this.result)}).promise;
+        const page = await pdf.getPage(1);
+        const canvas = document.getElementById('pdf-canvas');
+        const viewport = page.getViewport({scale: 2.0});
+        canvas.width = viewport.width; canvas.height = viewport.height;
+        document.getElementById('stage').style.width = viewport.width + 'px';
+        document.getElementById('stage').style.height = viewport.height + 'px';
+        await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function createRisers() {
+    const baseW = 800, baseH = 120;
+    const colors = ['#eee', '#ddd', '#ccc'];
+    for(let i=0; i<3; i++) {
+        addElement('rect', 100, 50 + (i*baseH), { w: baseW, h: baseH, color: colors[i], label: (3-i)+'段' });
+    }
+}
+
+// --- 6. Utilities ---
 function getPointOnArc(p, t) { return { x: Math.pow(1-t, 2)*p[0].x + 2*(1-t)*t*p[2].x + Math.pow(t, 2)*p[1].x, y: Math.pow(1-t, 2)*p[0].y + 2*(1-t)*t*p[2].y + Math.pow(t, 2)*p[1].y }; }
 function setTool(t) { state.currentTool = t; state.tempPoints = []; document.querySelectorAll('#toolbar button').forEach(b => b.classList.toggle('active', b.id === `tool-${t}`)); render(); }
-function addElement(type, x, y, opts = {}) { const el = { id: Math.random(), type, x, y, w: opts.w || 26, h: opts.h || 26, color: opts.color || currentInst.c, label: opts.label || currentInst.l, ...opts }; state.elements.push(el); saveHistory(); render(); }
+function addElement(type, x, y, opts = {}) { state.elements.push({ id: Math.random(), type, x, y, w: opts.w || 26, h: opts.h || 26, color: opts.color || currentInst.c, label: opts.label || currentInst.l, ...opts }); saveHistory(); render(); }
 function saveHistory() { state.history = state.history.slice(0, state.historyIndex + 1); state.history.push(JSON.stringify(state.elements)); state.historyIndex++; }
 function undo() { if (state.historyIndex > 0) { state.historyIndex--; state.elements = JSON.parse(state.history[state.historyIndex]); render(); } }
 function deleteSelected() { state.elements = state.elements.filter(el => !state.selectedIds.includes(el.id)); state.selectedIds = []; render(); saveHistory(); }
 function exportJSON() { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(state.elements)])); a.download = 'layout.json'; a.click(); }
+function exportPNG() { html2canvas(document.getElementById('stage')).then(c => { const a = document.createElement('a'); a.href = c.toDataURL(); a.download = 'layout.png'; a.click(); }); }
 
 window.onload = () => { setupEvents(); initSidebar(); render(); };
 </script>
