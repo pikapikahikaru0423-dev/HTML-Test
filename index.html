@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>舞台配置図 Pro v18</title>
+<title>舞台配置図 Pro v18.1.1</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
@@ -43,22 +43,24 @@ input[type=number]{width:42px;padding:2px 4px;font-size:11px;border:1px solid #c
 .chair-circle{position:absolute;inset:0;border-radius:50%;border:2px solid;background:white;z-index:1;}
 .chair-text{position:relative;z-index:5;white-space:nowrap;text-align:center;line-height:1;font-weight:700;width:80%;height:80%;display:flex;align-items:center;justify-content:center;overflow:hidden;pointer-events:none;}
 .elem.selected{outline:2px solid #1d9e75;outline-offset:4px;}
-.label-elem{background:white;border:1px solid #aaa;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:11px;padding:2px;text-align:center;}
-.rect-elem{border:2px solid #555;background:rgba(200,200,200,0.1);}
-.dim-elem{pointer-events:auto;}
-.dim-line{position:absolute;height:2px;background:#1d9e75;transform-origin:0 50%;}
-.dim-text{position:absolute;color:#1d9e75;font-weight:bold;font-size:12px;white-space:nowrap;transform:translate(-50%,-120%);}
 
-/* Rails */
-.rail-group{pointer-events:auto;cursor:move;}
+.label-elem{background:white;border:1px solid #aaa;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:12px;padding:4px;text-align:center;min-width:40px;}
+.rect-elem{border:2px solid #555;background:rgba(200,200,200,0.1);}
+.dim-elem{pointer-events:auto; display:flex; align-items:center;}
+.dim-line{position:absolute; height:2px; background:#1d9e75; transform-origin:0 50%;}
+.dim-text{position:absolute; color:#1d9e75; font-weight:bold; font-size:12px; white-space:nowrap; transform:translate(-50%,-120%);}
+
+/* Guide Lines */
 .rail-path{fill:none;stroke:rgba(29,158,117,0.4);stroke-width:3;stroke-dasharray:4,4;display:none;}
 .selected .rail-path{display:block;}
 
-/* UI Props */
-#props-bar{padding:5px 12px;background:white;border-top:1px solid #eee;font-size:11px;display:flex;align-items:center;justify-content:space-between;min-height:40px;flex-shrink:0;}
-#props{display:flex;align-items:center;gap:10px;}
-#hint-box{color:#666;background:#f5f5f5;padding:4px 10px;border-radius:4px;border-left:3px solid #1d9e75;}
+/* Selection Rect */
 #selection-rect{position:absolute;border:1px solid #1d9e75;background:rgba(29,158,117,0.15);pointer-events:none;z-index:1000;display:none;}
+
+/* Props Bar */
+#props-bar{padding:5px 12px;background:white;border-top:1px solid #eee;font-size:11px;display:flex;align-items:center;justify-content:space-between;min-height:44px;flex-shrink:0;}
+#props{display:flex;align-items:center;gap:12px;}
+#hint-box{color:#666;background:#f5f5f5;padding:4px 10px;border-radius:4px;border-left:3px solid #1d9e75;}
 </style>
 </head>
 <body>
@@ -122,11 +124,11 @@ input[type=number]{width:42px;padding:2px 4px;font-size:11px;border:1px solid #c
 
 <div id="props-bar">
   <div id="props">要素を選択して編集</div>
-  <div id="hint-box">💡 ヒント: 左のリストから楽器を選んで配置。</div>
+  <div id="hint-box">💡 ヒント: 左のリストから楽器を選択してください。</div>
 </div>
 
 <script>
-// --- Master Data ---
+// --- Data ---
 const MAIN_INST=[{l:"Pic",c:"#e35"},{l:"Fl",c:"#e35"},{l:"Ob",c:"#c44"},{l:"B♭Cl",c:"#36a"},{l:"B.Cl",c:"#36a"},{l:"A.Sax",c:"#1a8"},{l:"T.Sax",c:"#1a8"},{l:"B.Sax",c:"#1a8"},{l:"Fg",c:"#c44"},{l:"Tp",c:"#c70"},{l:"Tb",c:"#a84"},{l:"Hr",c:"#84a"},{l:"Tu",c:"#08a"},{l:"Eu",c:"#08a"},{l:"Stb",c:"#555"}];
 const OTHER_INST=[{l:"Cor Angl.",c:"#c44"},{l:"E♭Cl",c:"#36a"},{l:"A.Cl",c:"#36a"},{l:"CA.Cl",c:"#36a"},{l:"S.Sax",c:"#1a8"}];
 const PERC_COLOR = "#2a4a8a";
@@ -136,9 +138,9 @@ const PERC_CHAIRS=["Timp.","S.D.","4Tom","S.Cym","C.Cym","Drm","Bongos","Congas"
 let elements=[], groups=[], selectedList=[], tool='select';
 let zoomLevel=1.0, currentChairSize=26, idCounter=0;
 let currentInst=MAIN_INST[0], isShift=false;
-let draggingObjs=[], resizingObj=null, rotatingObj=null, activeRail=null;
+let draggingObjs=[], resizingObj=null, rotatingObj=null, isSelecting=false;
 let arcPts=[], linePts=[], dimPts=[], history=[], historyIndex=-1;
-let isSelecting=false, selectStart={x:0,y:0};
+let selectStart={x:0,y:0};
 
 const stage=document.getElementById('stage'), svg=document.getElementById('svg-layer'), selRectDom=document.getElementById('selection-rect');
 
@@ -163,7 +165,7 @@ function renderPercList(){
     list.forEach(l=>{
       const div=document.createElement('div'); div.className='inst';
       div.innerHTML=`<span style="width:10px;height:10px;background:${PERC_COLOR};border-radius:${isChair?'50%':'2px'}"></span>${l}`;
-      div.onclick=()=>{ updateInstSelection(div); if(isChair){ currentInst={l:l,c:PERC_COLOR}; setTool('chair'); } else { addElem('label',400,300,{text:l,color:PERC_COLOR,w:45,h:25}); setTool('select'); }};
+      div.onclick=()=>{ updateInstSelection(div); if(isChair){ currentInst={l:l,c:PERC_COLOR}; setTool('chair'); } else { addElem('label',400,300,{text:l,color:PERC_COLOR}); setTool('select'); }};
       container.appendChild(div);
     });
   };
@@ -172,15 +174,15 @@ function renderPercList(){
 function updateInstSelection(el){ document.querySelectorAll('.inst').forEach(e=>e.style.background=''); el.style.background='#e1f5ee'; }
 function switchTab(t){ ['main','other','perc'].forEach(k=>{ document.getElementById(`list-${k}`).style.display=t===k?'block':'none'; document.getElementById(`tab-${k}-btn`).className='tab '+(t===k?'active':''); }); }
 
-// --- Logic ---
-function setTool(t){ tool=t; arcPts=[]; linePts=[]; clearSVG(); document.querySelectorAll('button[id^=btn-]').forEach(b=>b.classList.remove('active')); document.getElementById('btn-'+t)?.classList.add('active'); }
+// --- Elements Core ---
+function setTool(t){ tool=t; arcPts=[]; linePts=[]; dimPts=[]; clearSVG(); document.querySelectorAll('button[id^=btn-]').forEach(b=>b.classList.remove('active')); document.getElementById('btn-'+t)?.classList.add('active'); }
 function changeZoom(v){ zoomLevel=v/100; document.getElementById('zoom-range').value=v; document.getElementById('zoom-input').value=v; document.getElementById('zoom-container').style.transform=`scale(${zoomLevel})`; }
 function updateSizeSetting(v){ currentChairSize=parseInt(v); document.getElementById('size-range').value=v; document.getElementById('size-input').value=v; }
 
 function getAutoFontSize(text, diameter) {
     const len = text.length;
     let scale = (len <= 2) ? 0.45 : (len <= 4) ? 0.38 : 1.2 / len;
-    return Math.min(diameter * scale, diameter * 0.8);
+    return Math.min(diameter * scale, diameter * 0.82);
 }
 
 function addElem(type,x,y,opts={}){
@@ -188,102 +190,90 @@ function addElem(type,x,y,opts={}){
   const div=document.createElement('div');
   div.className='elem'; div.dataset.id=id;
   div.style.left=x+'px'; div.style.top=y+'px';
-  const w=opts.w||(type==='chair'?currentChairSize:80), h=opts.h||(type==='chair'?currentChairSize:30);
-  const color=opts.color || (type==='chair'?currentInst.c:'#555');
-  div.style.width=w+'px'; div.style.height=h+'px';
+  const w=opts.w||(type==='chair'?currentChairSize:type==='rect'?80:50), h=opts.h||(type==='chair'?currentChairSize:type==='rect'?40:24);
+  const color=opts.color||(type==='chair'?currentInst.c:'#555');
+  div.style.width=(type==='dim'?'auto':w+'px'); div.style.height=(type==='dim'?'auto':h+'px');
   
   if(type==='chair'){
-    const lbl = opts.label||currentInst.l;
-    const fs = getAutoFontSize(lbl, w);
+    const lbl=opts.label||currentInst.l;
+    const fs=getAutoFontSize(lbl, w);
     div.innerHTML=`<div class="chair-container"><div class="chair-circle" style="border-color:${color};"></div><div class="chair-text" style="color:${color}; font-size:${fs}px;">${lbl}</div></div>`;
+  } else if(type==='label'){
+    div.className+=' label-elem'; div.style.borderColor=color; div.style.color=color; div.textContent=opts.text||'Label';
+  } else if(type==='rect'){
+    div.className+=' rect-elem'; div.style.borderColor=color;
   } else if(type==='dim'){
-    div.className+=' dim-elem'; div.style.width='auto'; div.innerHTML=`<div class="dim-line" style="width:${w}px;transform:rotate(${opts.angle}deg)"></div><div class="dim-text" style="left:${w/2}px">${opts.text}</div>`;
-  } else {
-    div.className+=(type==='label'?' label-elem':' rect-elem'); div.style.borderColor=color; div.style.color=color; div.textContent=opts.text||'';
+    div.className+=' dim-elem';
+    div.innerHTML=`<div class="dim-line" style="width:${w}px;transform:rotate(${opts.angle||0}deg)"></div><div class="dim-text" style="left:${w/2}px">${opts.text||'1.0m'}</div>`;
   }
   stage.appendChild(div);
-  const rec={id,type,dom:div,x,y,w,h,angle:opts.angle||0,color,label:opts.label||'',text:opts.text||'',t:opts.t||0,parentId:opts.parentId||null};
+  const rec={id,type,dom:div,x,y,w,h,angle:opts.angle||0,color,label:opts.label||'',text:opts.text||''};
   elements.push(rec); return rec;
 }
 
-function createRail(type, pts, n, inst){
-  const railId = ++idCounter;
-  const railGroup = {id:railId, type, pts, children:[]};
-  for(let i=0; i<n; i++){
-    const t = i/(n-1||1);
-    const pos = getPosOnRail(type, pts, t);
-    const child = addElem('chair', pos.x-currentChairSize/2, pos.y-currentChairSize/2, {label:inst.l, color:inst.c, t:t, parentId:railId});
-    railGroup.children.push(child.id);
-  }
-  groups.push(railGroup);
-  renderRails(); saveHistory();
-}
-
-function getPosOnRail(type, pts, t){
-  if(type==='line'){
-    return {x: pts[0].x+(pts[1].x-pts[0].x)*t, y: pts[0].y+(pts[1].y-pts[0].y)*t};
-  } else {
-    const [p1,p2,p3]=pts;
-    const x=Math.pow(1-t,2)*p1.x+2*(1-t)*t*p3.x+Math.pow(t,2)*p2.x;
-    const y=Math.pow(1-t,2)*p1.y+2*(1-t)*t*p3.y+Math.pow(t,2)*p2.y;
-    return {x,y};
-  }
-}
-
-function renderRails(){
-  svg.innerHTML='';
-  groups.forEach(g=>{
-    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
-    let d='';
-    if(g.type==='line') d=`M${g.pts[0].x},${g.pts[0].y} L${g.pts[1].x},${g.pts[1].y}`;
-    else d=`M${g.pts[0].x},${g.pts[0].y} Q${g.pts[2].x},${g.pts[2].y} ${g.pts[1].x},${g.pts[1].y}`;
-    path.setAttribute('d',d);
-    path.setAttribute('class','rail-path');
-    path.dataset.groupId = g.id;
-    // 選択状態の同期はCSSで行うが、Path自体を掴めるようにする
-    svg.appendChild(path);
-  });
-}
-
-// --- Events ---
+// --- Interaction ---
 function setupEvents(){
   stage.addEventListener('pointerdown',onDown); window.addEventListener('pointermove',onMove); window.addEventListener('pointerup',onUp);
-  window.addEventListener('keydown', e => { if(e.key==='Delete'||e.key==='Backspace') deleteSelected(); });
+  window.addEventListener('keydown', e=>{ if(e.key==='Delete'||e.key==='Backspace') deleteSelected(); });
 }
 function getXY(e){ const r=stage.getBoundingClientRect(); return {x:(e.clientX-r.left)/zoomLevel, y:(e.clientY-r.top)/zoomLevel}; }
 
 function onDown(e){
   const pt=getXY(e);
   const ed=e.target.closest('.elem');
-  const railPath=e.target.closest('.rail-path');
-
-  if(railPath){
-    const g = groups.find(x=>x.id==railPath.dataset.groupId);
-    selectSingle(null); // 一旦クリア
-    g.children.forEach(cid=>{ const el=elements.find(x=>x.id==cid); el.dom.classList.add('selected'); selectedList.push(el); });
-    activeRail = g; draggingObjs=selectedList.map(o=>({obj:o, ox:pt.x-o.x, oy:pt.y-o.y}));
-    updateProps(); return;
-  }
-
   if(ed){
     const rec=elements.find(el=>el.id==ed.dataset.id);
     if(tool==='select'){
-      if(rec.parentId){ // レール上の椅子
-        selectSingle(rec);
-        const g = groups.find(x=>x.id==rec.parentId);
-        draggingObjs=[{obj:rec, rail:g}];
-      } else {
-        if(!selectedList.includes(rec)) selectSingle(rec);
-        draggingObjs=selectedList.map(o=>({obj:o, ox:pt.x-o.x, oy:pt.y-o.y}));
-      }
+      if(!selectedList.includes(rec)) selectSingle(rec);
+      draggingObjs=selectedList.map(o=>({obj:o, ox:pt.x-o.x, oy:pt.y-o.y}));
     }
     return;
   }
   
   if(tool==='select'){ clearSelection(); isSelecting=true; selectStart=pt; selRectDom.style.display='block'; }
   else if(tool==='chair') addElem('chair',pt.x-currentChairSize/2,pt.y-currentChairSize/2);
-  else if(tool==='arc') { arcPts.push(pt); if(arcPts.length===3){ const n=prompt("椅子の数",6); if(n) createRail('arc', [...arcPts], n, currentInst); arcPts=[]; clearSVG(); } }
-  else if(tool==='line'){ linePts.push(pt); if(linePts.length===2){ const n=prompt("椅子の数",4); if(n) createRail('line', [...linePts], n, currentInst); linePts=[]; clearSVG(); } }
+  else if(tool==='label') addElem('label',pt.x-25,pt.y-12,{text:prompt('ラベル内容','Label')});
+  else if(tool==='rect') addElem('rect',pt.x-40,pt.y-20);
+  else if(tool==='dim'){
+    dimPts.push(pt);
+    if(dimPts.length===2){
+      const val=prompt("寸法値","1.0m");
+      if(val){
+        const [p1,p2]=dimPts; const dx=p2.x-p1.x, dy=p2.y-p1.y;
+        addElem('dim',p1.x,p1.y,{w:Math.sqrt(dx*dx+dy*dy),angle:Math.atan2(dy,dx)*180/Math.PI,text:val});
+      }
+      dimPts=[]; clearSVG();
+    }
+  }
+  else if(tool==='arc'){
+    arcPts.push(pt);
+    if(arcPts.length===3){
+      const n=prompt("椅子の数",6);
+      if(n){
+        const [p1,p2,p3]=arcPts;
+        for(let i=0; i<n; i++){
+          const t=i/(n-1||1);
+          const x=Math.pow(1-t,2)*p1.x+2*(1-t)*t*p3.x+Math.pow(t,2)*p2.x, y=Math.pow(1-t,2)*p1.y+2*(1-t)*t*p3.y+Math.pow(t,2)*p2.y;
+          addElem('chair',x-currentChairSize/2,y-currentChairSize/2);
+        }
+      }
+      arcPts=[]; clearSVG(); saveHistory();
+    }
+  }
+  else if(tool==='line'){
+    linePts.push(pt);
+    if(linePts.length===2){
+      const n=prompt("椅子の数",4);
+      if(n){
+        const [p1,p2]=linePts;
+        for(let i=0; i<n; i++){
+          const t=i/(n-1||1);
+          addElem('chair',p1.x+(p2.x-p1.x)*t-currentChairSize/2,p1.y+(p2.y-p1.y)*t-currentChairSize/2);
+        }
+      }
+      linePts=[]; clearSVG(); saveHistory();
+    }
+  }
 }
 
 function onMove(e){
@@ -291,68 +281,84 @@ function onMove(e){
   if(isSelecting){
     const x=Math.min(pt.x,selectStart.x), y=Math.min(pt.y,selectStart.y), w=Math.abs(pt.x-selectStart.x), h=Math.abs(pt.y-selectStart.y);
     selRectDom.style.left=x+'px'; selRectDom.style.top=y+'px'; selRectDom.style.width=w+'px'; selRectDom.style.height=h+'px';
-    elements.forEach(el=>{ if(el.x>x&&el.x+el.w<x+w&&el.y>y&&el.y+el.h<y+h) { if(!selectedList.includes(el)){el.dom.classList.add('selected'); selectedList.push(el);}} });
+    elements.forEach(el=>{
+      const isIn = (el.x>x && el.x+el.w < x+w && el.y>y && el.y+el.h < y+h);
+      if(isIn && !selectedList.includes(el)){ el.dom.classList.add('selected'); selectedList.push(el); }
+    });
+    updateProps();
   }
   if(draggingObjs.length){
     draggingObjs.forEach(d=>{
-      if(d.rail){ // スライド移動
-        let bestT=0, minDist=999999;
-        for(let i=0; i<=100; i++){
-          const p = getPosOnRail(d.rail.type, d.rail.pts, i/100);
-          const dist = Math.hypot(p.x-pt.x, p.y-pt.y);
-          if(dist < minDist){ minDist=dist; bestT=i/100; }
-        }
-        d.obj.t = bestT; const pos = getPosOnRail(d.rail.type, d.rail.pts, bestT);
-        d.obj.x = pos.x-d.obj.w/2; d.obj.y = pos.y-d.obj.h/2;
-      } else { // 自由移動
-        d.obj.x=pt.x-d.ox; d.obj.y=pt.y-d.oy;
-      }
+      d.obj.x=pt.x-d.ox; d.obj.y=pt.y-d.oy;
       d.obj.dom.style.left=d.obj.x+'px'; d.obj.dom.style.top=d.obj.y+'px';
     });
-    if(activeRail){ // レールごと移動
-      const dx=pt.x-draggingObjs[0].ox-draggingObjs[0].obj.x, dy=pt.y-draggingObjs[0].oy-draggingObjs[0].obj.y;
-      activeRail.pts.forEach(p=>{p.x+=dx; p.y+=dy;}); renderRails();
-    }
   }
+  // Real-time Preview for Arc/Line
   if(tool==='arc' && arcPts.length>0) drawArcPreview(pt);
   if(tool==='line' && linePts.length>0) drawLinePreview(pt);
+  if(tool==='dim' && dimPts.length>0) drawLinePreview(pt);
 }
-function onUp(){ isSelecting=false; selRectDom.style.display='none'; if(draggingObjs.length) saveHistory(); draggingObjs=[]; activeRail=null; }
+function onUp(){ isSelecting=false; selRectDom.style.display='none'; if(draggingObjs.length) saveHistory(); draggingObjs=[]; }
 
-// --- UI Actions ---
+// --- UI Logic ---
 function selectSingle(r){ clearSelection(); if(r){ selectedList=[r]; r.dom.classList.add('selected'); } updateProps(); }
 function clearSelection(){ selectedList.forEach(r=>r.dom.classList.remove('selected')); selectedList=[]; updateProps(); }
 function updateProps(){
   const p=document.getElementById('props');
   if(!selectedList.length){ p.textContent='要素を選択して編集'; return; }
   const s=selectedList[0];
-  p.innerHTML=`選択中：<button onclick="clearSelection()">解除</button> <button onclick="deleteSelected()" style="color:red">削除</button>
-  内容:<input type="text" value="${s.type==='chair'?s.label:s.text}" oninput="updatePropVal(this.value)">
-  <input type="color" value="${s.color}" onchange="updatePropColor(this.value)">`;
+  p.innerHTML=`
+    選択中：<button onclick="clearSelection()">解除</button>
+    <button onclick="deleteSelected()" style="color:white; background:red; border:none;">削除</button>
+    内容:<input type="text" value="${s.type==='chair'?s.label:s.text}" oninput="updatePropVal(this.value)">
+    色:<input type="color" value="${s.color}" onchange="updatePropColor(this.value)">
+  `;
 }
-function updatePropVal(v){ selectedList.forEach(s=>{ if(s.type==='chair'){ s.label=v; const t=s.dom.querySelector('.chair-text'); t.textContent=v; t.style.fontSize=getAutoFontSize(v,s.w)+'px'; } else { s.text=v; s.dom.textContent=v; } }); }
-function updatePropColor(c){ selectedList.forEach(s=>{ s.color=c; if(s.type==='chair'){ s.dom.querySelector('.chair-circle').style.borderColor=c; s.dom.querySelector('.chair-text').style.color=c; } else { s.dom.style.borderColor=c; s.dom.style.color=c; } }); }
-function deleteSelected(){ selectedList.forEach(s=>{ s.dom.remove(); elements=elements.filter(e=>e.id!==s.id); groups.forEach(g=>g.children=g.children.filter(cid=>cid!==s.id)); }); clearSelection(); saveHistory(); }
-function clearAll(){ if(confirm("全消去しますか？")){ elements.forEach(e=>e.dom.remove()); elements=[]; groups=[]; saveHistory(); renderRails(); } }
+function updatePropVal(v){ selectedList.forEach(s=>{
+  if(s.type==='chair'){ s.label=v; const t=s.dom.querySelector('.chair-text'); t.textContent=v; t.style.fontSize=getAutoFontSize(v,s.w)+'px'; }
+  else if(s.type==='dim'){ s.text=v; s.dom.querySelector('.dim-text').textContent=v; }
+  else { s.text=v; s.dom.textContent=v; }
+}); }
+function updatePropColor(c){ selectedList.forEach(s=>{
+  s.color=c;
+  if(s.type==='chair'){ s.dom.querySelector('.chair-circle').style.borderColor=c; s.dom.querySelector('.chair-text').style.color=c; }
+  else { s.dom.style.borderColor=c; s.dom.style.color=c; }
+}); }
 
-// --- History & Export ---
-function saveHistory(){ const s=JSON.stringify({elements, groups}); history=history.slice(0,historyIndex+1); history.push(s); historyIndex++; }
+function deleteSelected(){ selectedList.forEach(s=>{ s.dom.remove(); elements=elements.filter(e=>e.id!==s.id); }); clearSelection(); saveHistory(); }
+function clearAll(){ if(confirm("全て消去しますか？")){ elements.forEach(e=>e.dom.remove()); elements=[]; saveHistory(); } }
+
+// --- SVG Preview ---
+function clearSVG(){ svg.innerHTML=''; }
+function drawLinePreview(pt){
+  clearSVG(); const start = linePts[0] || dimPts[0];
+  const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+  l.setAttribute('x1',start.x); l.setAttribute('y1',start.y); l.setAttribute('x2',pt.x); l.setAttribute('y2',pt.y);
+  l.setAttribute('stroke','#1d9e75'); l.setAttribute('stroke-width','2'); svg.appendChild(l);
+}
+function drawArcPreview(pt){
+  clearSVG();
+  if(arcPts.length===1){ drawLinePreview(pt); }
+  else if(arcPts.length===2){
+    const p=document.createElementNS('http://www.w3.org/2000/svg','path');
+    p.setAttribute('d',`M${arcPts[0].x},${arcPts[0].y} Q${pt.x},${pt.y} ${arcPts[1].x},${arcPts[1].y}`);
+    p.setAttribute('stroke','#1d9e75'); p.setAttribute('fill','none'); p.setAttribute('stroke-width','2');
+    svg.appendChild(p);
+  }
+}
+
+// --- Template & History ---
+function saveHistory(){ const s=JSON.stringify(elements.map(e=>({type:e.type,x:e.x,y:e.y,w:e.w,h:e.h,angle:e.angle,color:e.color,label:e.label,text:e.text}))); history=history.slice(0,historyIndex+1); history.push(s); historyIndex++; }
 function undo(){ if(historyIndex>0){ historyIndex--; applyState(); } }
-function redo(){ if(historyIndex<history.length-1){ historyIndex++; applyState(); } }
 function applyState(){
   const data=JSON.parse(history[historyIndex]);
-  elements.forEach(e=>e.dom.remove()); elements=[]; groups=data.groups;
-  data.elements.forEach(en=>addElem(en.type,en.x,en.y,en)); renderRails();
+  elements.forEach(e=>e.dom.remove()); elements=[];
+  data.forEach(en=>addElem(en.type,en.x,en.y,en));
 }
-function exportPNG(){ html2canvas(stage,{scale:2}).then(c=>{ const a=document.createElement('a'); a.download='stage_v18.png'; a.href=c.toDataURL(); a.click(); }); }
-function exportTemplate(){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify({elements,groups})],{type:'application/json'})); a.download='template.json'; a.click(); }
-function importTemplate(){ const i=document.createElement('input'); i.type='file'; i.onchange=async e=>{ const d=JSON.parse(await e.target.files[0].text()); elements.forEach(el=>el.dom.remove()); elements=[]; groups=d.groups; d.elements.forEach(en=>addElem(en.type,en.x,en.y,en)); renderRails(); saveHistory(); }; i.click(); }
+function exportPNG(){ html2canvas(stage,{scale:2}).then(c=>{ const a=document.createElement('a'); a.download='stage.png'; a.href=c.toDataURL(); a.click(); }); }
+function exportTemplate(){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(elements)],{type:'application/json'})); a.download='template.json'; a.click(); }
+function importTemplate(){ const i=document.createElement('input'); i.type='file'; i.onchange=async e=>{ const d=JSON.parse(await e.target.files[0].text()); elements.forEach(el=>el.dom.remove()); elements=[]; d.forEach(en=>addElem(en.type,en.x,en.y,en)); saveHistory(); }; i.click(); }
 async function loadPDF(){ const i=document.createElement('input'); i.type='file'; i.accept='.pdf'; i.onchange=async e=>{ const d=new Uint8Array(await e.target.files[0].arrayBuffer()); pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; const pdf=await pdfjsLib.getDocument({data:d}).promise; const page=await pdf.getPage(1); const vp=page.getViewport({scale:1.5}); const cv=document.getElementById('bg'); cv.width=vp.width; cv.height=vp.height; stage.style.width=vp.width+'px'; stage.style.height=vp.height+'px'; await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise; cv.style.display='block'; }; i.click(); }
-
-// --- Previews ---
-function clearSVG(){ svg.innerHTML=''; renderRails(); }
-function drawLinePreview(pt){ clearSVG(); const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',linePts[0].x); l.setAttribute('y1',linePts[0].y); l.setAttribute('x2',pt.x); l.setAttribute('y2',pt.y); l.setAttribute('stroke','#1d9e75'); svg.appendChild(l); }
-function drawArcPreview(pt){ clearSVG(); if(arcPts.length===1) { const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',arcPts[0].x); l.setAttribute('y1',arcPts[0].y); l.setAttribute('x2',pt.x); l.setAttribute('y2',pt.y); l.setAttribute('stroke','#1d9e75'); svg.appendChild(l); } else { const p=document.createElementNS('http://www.w3.org/2000/svg','path'); p.setAttribute('d',`M${arcPts[0].x},${arcPts[0].y} Q${pt.x},${pt.y} ${arcPts[1].x},${arcPts[1].y}`); p.setAttribute('stroke','#1d9e75'); p.setAttribute('fill','none'); svg.appendChild(p); } }
 
 window.onload=init;
 </script>
