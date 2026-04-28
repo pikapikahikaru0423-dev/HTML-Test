@@ -145,6 +145,172 @@ function setupEvents() {
 
 /* --- ADD_LOGIC_HERE --- */
 // ここに、これから出す「追加機能」を貼り付けていきます
+    // --- Parts 1: Arc Configuration & Group Dragging ---
+
+/**
+ * 2次ベジェ曲線上の点を計算 (t: 0～1)
+ * p[0]:始点, p[1]:終点, p[2]:制御点(膨らみ)
+ */
+function getPointOnArc(p, t) {
+    return {
+        x: Math.pow(1 - t, 2) * p[0].x + 2 * (1 - t) * t * p[2].x + Math.pow(t, 2) * p[1].x,
+        y: Math.pow(1 - t, 2) * p[0].y + 2 * (1 - t) * t * p[2].y + Math.pow(t, 2) * p[1].y
+    };
+}
+
+/**
+ * 弧配置のステップ進行と描画
+ */
+function handleArcTool(x, y) {
+    state.tempPoints.push({ x, y });
+
+    if (state.tempPoints.length === 3) {
+        const count = prompt("配置する椅子の数", "5");
+        if (count && !isNaN(count)) {
+            const n = parseInt(count);
+            const gid = Date.now(); // グループID
+            const arcPts = JSON.parse(JSON.stringify(state.tempPoints));
+
+            for (let i = 0; i < n; i++) {
+                const t = n > 1 ? i / (n - 1) : 0.5;
+                const pos = getPointOnArc(arcPts, t);
+                
+                // BaseのaddElementを活用
+                const newEl = {
+                    type: 'chair',
+                    x: pos.x - CHAIR_SIZE / 2,
+                    y: pos.y - CHAIR_SIZE / 2,
+                    gid: gid,
+                    pts: arcPts, // 軌道データを保持
+                    t: t          // 軌道上の位置(0~1)を保持
+                };
+                state.elements.push({
+                    id: Math.random(),
+                    ...newEl,
+                    w: CHAIR_SIZE, h: CHAIR_SIZE,
+                    color: '#1d9e75', label: ''
+                });
+            }
+            saveHistory();
+        }
+        state.tempPoints = [];
+    }
+    render();
+}
+
+/**
+ * グループ移動用：軌道（点線）の描画
+ */
+function renderSVG() {
+    const svg = document.getElementById('svg-layer');
+    svg.innerHTML = '';
+    
+    // 1. 既存グループの移動用レールを描画
+    const groups = {};
+    state.elements.forEach(el => {
+        if (el.gid && el.pts) groups[el.gid] = el.pts;
+    });
+
+    Object.keys(groups).forEach(gid => {
+        const p = groups[gid];
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', `M ${p[0].x} ${p[0].y} Q ${p[2].x} ${p[2].y} ${p[1].x} ${p[1].y}`);
+        path.setAttribute('stroke', 'rgba(29, 158, 117, 0.4)');
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke-dasharray', '5,5');
+        path.setAttribute('stroke-width', '15'); // 掴みやすく太めに設定
+        path.style.cursor = 'move';
+        path.style.pointerEvents = 'auto';
+
+        // レールドラッグ開始
+        path.onpointerdown = (e) => {
+            if (state.currentTool !== 'select') return;
+            e.stopPropagation();
+            const rect = document.getElementById('stage').getBoundingClientRect();
+            startDragging({
+                type: 'group',
+                gid: parseFloat(gid),
+                ox: (e.clientX - rect.left) / state.zoom,
+                oy: (e.clientY - rect.top) / state.zoom,
+                originalPts: JSON.parse(JSON.stringify(p))
+            });
+        };
+        svg.appendChild(path);
+    });
+
+    // 2. 作成中のガイド線を描画
+    if (state.currentTool === 'arc' && state.tempPoints.length > 0) {
+        const guide = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const p = state.tempPoints;
+        const rect = document.getElementById('stage').getBoundingClientRect();
+        // マウスの現在地（lastMouseはBaseで管理するか、ここで取る）
+        const mx = (window.lastEvent?.clientX - rect.left) / state.zoom || p[0].x;
+        const my = (window.lastEvent?.clientY - rect.top) / state.zoom || p[0].y;
+
+        let d = `M ${p[0].x} ${p[0].y}`;
+        if (p.length === 1) d += ` L ${mx} ${my}`; // 1点目：直線
+        else if (p.length === 2) d += ` Q ${mx} ${my} ${p[1].x} ${p[1].y}`; // 2点目：カーブ
+        
+        guide.setAttribute('d', d);
+        guide.setAttribute('stroke', 'var(--primary)');
+        guide.setAttribute('fill', 'none');
+        guide.setAttribute('stroke-width', '2');
+        svg.appendChild(guide);
+    }
+}
+
+/**
+ * 移動ロジックの統合
+ */
+let dragSession = null;
+function startDragging(data) { dragSession = data; }
+
+// BaseのsetupEventsを拡張（または既存のに追記）
+document.addEventListener('pointermove', (e) => {
+    window.lastEvent = e; // ガイド線描画用
+    if (state.currentTool === 'arc' && state.tempPoints.length > 0) renderSVG();
+
+    if (!dragSession) return;
+
+    const rect = document.getElementById('stage').getBoundingClientRect();
+    const x = (e.clientX - rect.left) / state.zoom;
+    const y = (e.clientY - rect.top) / state.zoom;
+
+    if (dragSession.type === 'group') {
+        const dx = x - dragSession.ox;
+        const dy = y - dragSession.oy;
+        const newPts = dragSession.originalPts.map(p => ({ x: p.x + dx, y: p.y + dy }));
+        
+        state.elements.forEach(el => {
+            if (el.gid === dragSession.gid) {
+                el.pts = newPts;
+                const pos = getPointOnArc(newPts, el.t);
+                el.x = pos.x - el.w / 2;
+                el.y = pos.y - el.h / 2;
+            }
+        });
+        render();
+    }
+});
+
+document.addEventListener('pointerup', () => {
+    if (dragSession) saveHistory();
+    dragSession = null;
+});
+
+// Baseの既存stage.onpointerdownを「弧配置」に対応させるよう修正
+const originalDown = document.getElementById('stage').onpointerdown;
+document.getElementById('stage').onpointerdown = (e) => {
+    const rect = document.getElementById('stage').getBoundingClientRect();
+    const x = (e.clientX - rect.left) / state.zoom;
+    const y = (e.clientY - rect.top) / state.zoom;
+
+    if (state.currentTool === 'arc') {
+        handleArcTool(x, y);
+    } else {
+        originalDown(e);
+    }
+};
 
 // 初期化
 window.onload = () => {
