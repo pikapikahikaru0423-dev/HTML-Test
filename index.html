@@ -3,62 +3,63 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stage Layout Maker v21.0</title>
+    <title>Stage Layout Maker v21.1</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
-        /* CSS変数の定義（Reactのテーマ管理に移行しやすい） */
         :root { --primary: #1d9e75; --accent: #e11d48; --bg: #d8d6cf; --sidebar-w: 180px; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; background: var(--bg); overflow: hidden; touch-action: none; }
 
-        /* UI Layout */
-        #app-container { display: flex; flex-direction: column; height: 100%; }
-        #toolbar { height: 50px; background: white; border-bottom: 1px solid #ccc; display: flex; align-items: center; padding: 0 12px; gap: 10px; z-index: 100; overflow-x: auto; }
+        #toolbar { height: 50px; background: white; border-bottom: 1px solid #ccc; display: flex; align-items: center; padding: 0 12px; gap: 8px; z-index: 100; flex-shrink: 0; overflow-x: auto; }
         #main-content { display: flex; flex: 1; overflow: hidden; }
+        #sidebar { width: var(--sidebar-w); background: white; border-right: 1px solid #ccc; display: flex; flex-direction: column; flex-shrink: 0; }
+        #canvas-area { flex: 1; overflow: auto; position: relative; background: #bbb; padding: 80px; }
         
-        #sidebar { width: var(--sidebar-w); background: white; border-right: 1px solid #ccc; display: flex; flex-direction: column; }
-        #canvas-area { flex: 1; overflow: auto; position: relative; background: #bbb; padding: 100px; }
-        
-        /* Canvas Objects */
         #zoom-layer { transform-origin: top left; }
         #stage { position: relative; background: white; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
         #pdf-canvas { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
         #svg-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; overflow: visible; }
+        #elements-layer { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
         
-        /* Elements Style */
-        .elem { position: absolute; z-index: 20; display: flex; align-items: center; justify-content: center; cursor: move; pointer-events: auto; }
-        .elem.selected { outline: 3px solid var(--primary); outline-offset: 4px; }
+        .elem { position: absolute; display: flex; align-items: center; justify-content: center; cursor: move; pointer-events: auto; font-weight: bold; font-size: 11px; text-align: center; }
+        .elem.selected { outline: 3px solid var(--primary); outline-offset: 4px; z-index: 100 !important; }
         .chair { border-radius: 50%; border: 2px solid; background: white; }
+        .rect { border: 2px solid; background: rgba(200,200,200,0.1); }
+        .label { border: 1px solid transparent; background: transparent; }
+
+        #selection-box { position: absolute; border: 1px solid var(--primary); background: rgba(29,158,117,0.1); pointer-events: none; display: none; z-index: 200; }
         
-        /* Utility */
-        .hidden { display: none !important; }
-        button { padding: 6px 12px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: white; white-space: nowrap; }
-        button.active { background: var(--primary); color: white; border-color: var(--primary); }
+        button { padding: 6px 12px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: white; font-size: 12px; }
+        button.active { background: var(--primary); color: white; border-color: var(--primary); font-weight: bold; }
+        .tab { flex: 1; padding: 10px 2px; text-align: center; font-size: 11px; cursor: pointer; border-bottom: 1px solid #ccc; background: #f0f0f0; color: #666; }
+        .tab.active { background: white; border-bottom: 2px solid var(--primary); color: var(--primary); font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div id="app-container">
-    <div id="toolbar" id="toolbar-ui">
+<div id="app-container" style="display:flex; flex-direction:column; height:100vh;">
+    <div id="toolbar">
         <button id="tool-select" class="active" onclick="setTool('select')">選択</button>
         <button id="tool-chair" onclick="setTool('chair')">椅子</button>
         <button id="tool-arc" onclick="setTool('arc')">弧配置</button>
-        <div style="flex:1"></div>
+        <button id="tool-label" onclick="setTool('label')">ラベル</button>
+        <button id="tool-rect" onclick="setTool('rect')">四角</button>
+        <div style="width:1px; height:20px; background:#ccc; margin:0 5px;"></div>
         <button onclick="undo()">Undo</button>
+        <button onclick="deleteSelected()" style="color:var(--accent)">削除</button>
         <button onclick="exportJSON()">保存</button>
     </div>
 
     <div id="main-content">
-        <div id="sidebar">
-            <div id="instrument-list"></div>
-        </div>
+        <div id="sidebar"></div>
         <div id="canvas-area">
             <div id="zoom-layer">
                 <div id="stage" style="width: 1000px; height: 750px;">
                     <canvas id="pdf-canvas"></canvas>
                     <svg id="svg-layer"></svg>
                     <div id="elements-layer"></div>
+                    <div id="selection-box"></div>
                 </div>
             </div>
         </div>
@@ -66,440 +67,195 @@
 </div>
 
 <script>
-/**
- * Stage Layout Maker - Core Engine (v21.0)
- * 将来のReact化を想定し、Stateオブジェクトを中心に設計
- */
-
-// --- 1. State (状態管理) ---
+// --- State ---
 let state = {
-    elements: [],       // 全オブジェクト
-    selectedIds: [],    // 選択中のID
+    elements: [],
+    selectedIds: [],
     currentTool: 'select',
     zoom: 1.0,
     history: [],
     historyIndex: -1,
-    canvasSize: { w: 1000, h: 750 },
-    tempPoints: []      // 弧配置などのクリック一時保存
+    tempPoints: []
 };
 
-// --- 2. Constants (定数) ---
-const CHAIR_SIZE = 26;
+const INSTRUMENTS = {
+    woodwind: [
+        {l:"Fl", c:"#e35"}, {l:"Ob", c:"#e35"}, {l:"Cl", c:"#36a"}, {l:"B.Cl", c:"#36a"},
+        {l:"Fg", c:"#e35"}, {l:"A.Sax", c:"#1a8"}, {l:"T.Sax", c:"#1a8"}, {l:"B.Sax", c:"#1a8"}
+    ],
+    brass: [
+        {l:"Tp", c:"#c70"}, {l:"Hr", c:"#84a"}, {l:"Tb", c:"#a84"}, 
+        {l:"Euph", c:"#08a"}, {l:"Tu", c:"#08a"}, {l:"St.B", c:"#08a"}
+    ],
+    perc: [
+        {l:"Timpani", c:"#555"}, {l:"S.D.", c:"#555"}, {l:"B.D.", c:"#555"}, 
+        {l:"Cymbals", c:"#555"}, {l:"Glocken", c:"#555"}, {l:"Xylo", c:"#555"}
+    ]
+};
+let currentInst = INSTRUMENTS.woodwind[0];
+let dragSession = null;
+let boxStart = null;
 
-// --- 3. Core Functions (核となる関数) ---
-
+// --- Core Logic ---
 function render() {
     const layer = document.getElementById('elements-layer');
-    layer.innerHTML = ''; // 再描画
-
+    layer.innerHTML = '';
     state.elements.forEach(el => {
         const div = document.createElement('div');
         div.className = `elem ${el.type} ${state.selectedIds.includes(el.id) ? 'selected' : ''}`;
-        div.style.left = `${el.x}px`;
-        div.style.top = `${el.y}px`;
-        div.style.width = `${el.w}px`;
-        div.style.height = `${el.h}px`;
-        div.style.borderColor = el.color;
-        div.style.color = el.color;
+        div.style.cssText = `left:${el.x}px; top:${el.y}px; width:${el.w}px; height:${el.h}px; border-color:${el.color}; color:${el.color};`;
         div.innerHTML = `<span>${el.label || ''}</span>`;
-        
-        // イベント紐付け（Reactではここが各コンポーネント内になる）
         div.onpointerdown = (e) => handleElementDown(e, el);
-        
         layer.appendChild(div);
     });
-
-    renderSVG(); // ガイド線描画
+    renderSVG();
 }
 
-// ツール切り替え
-function setTool(toolName) {
-    state.currentTool = toolName;
-    state.tempPoints = [];
-    document.querySelectorAll('#toolbar button').forEach(btn => {
-        btn.classList.toggle('active', btn.id === `tool-${toolName}`);
-    });
-    render();
-}
-
-// --- 4. Event Handlers (イベント) ---
-function setupEvents() {
-    const stage = document.getElementById('stage');
-    
-    stage.onpointerdown = (e) => {
-        if (e.target !== stage && e.target.id !== 'elements-layer') return;
-        
-        const rect = stage.getBoundingClientRect();
-        const x = (e.clientX - rect.left) / state.zoom;
-        const y = (e.clientY - rect.top) / state.zoom;
-
-        if (state.currentTool === 'chair') {
-            addElement('chair', x - CHAIR_SIZE/2, y - CHAIR_SIZE/2);
-        } else if (state.currentTool === 'select') {
-            state.selectedIds = [];
-            render();
-        }
-        // 弧配置ロジック等はここに追加していく
-    };
-}
-
-/* --- ADD_LOGIC_HERE --- */
-// ここに、これから出す「追加機能」を貼り付けていきます
-    // --- Parts 1: Arc Configuration & Group Dragging ---
-
-/**
- * 2次ベジェ曲線上の点を計算 (t: 0～1)
- * p[0]:始点, p[1]:終点, p[2]:制御点(膨らみ)
- */
-function getPointOnArc(p, t) {
-    return {
-        x: Math.pow(1 - t, 2) * p[0].x + 2 * (1 - t) * t * p[2].x + Math.pow(t, 2) * p[1].x,
-        y: Math.pow(1 - t, 2) * p[0].y + 2 * (1 - t) * t * p[2].y + Math.pow(t, 2) * p[1].y
-    };
-}
-
-/**
- * 弧配置のステップ進行と描画
- */
-function handleArcTool(x, y) {
-    state.tempPoints.push({ x, y });
-
-    if (state.tempPoints.length === 3) {
-        const count = prompt("配置する椅子の数", "5");
-        if (count && !isNaN(count)) {
-            const n = parseInt(count);
-            const gid = Date.now(); // グループID
-            const arcPts = JSON.parse(JSON.stringify(state.tempPoints));
-
-            for (let i = 0; i < n; i++) {
-                const t = n > 1 ? i / (n - 1) : 0.5;
-                const pos = getPointOnArc(arcPts, t);
-                
-                // BaseのaddElementを活用
-                const newEl = {
-                    type: 'chair',
-                    x: pos.x - CHAIR_SIZE / 2,
-                    y: pos.y - CHAIR_SIZE / 2,
-                    gid: gid,
-                    pts: arcPts, // 軌道データを保持
-                    t: t          // 軌道上の位置(0~1)を保持
-                };
-                state.elements.push({
-                    id: Math.random(),
-                    ...newEl,
-                    w: CHAIR_SIZE, h: CHAIR_SIZE,
-                    color: '#1d9e75', label: ''
-                });
-            }
-            saveHistory();
-        }
-        state.tempPoints = [];
-    }
-    render();
-}
-
-/**
- * グループ移動用：軌道（点線）の描画
- */
 function renderSVG() {
     const svg = document.getElementById('svg-layer');
     svg.innerHTML = '';
-    
-    // 1. 既存グループの移動用レールを描画
     const groups = {};
-    state.elements.forEach(el => {
-        if (el.gid && el.pts) groups[el.gid] = el.pts;
-    });
+    state.elements.forEach(el => { if (el.gid && el.pts) groups[el.gid] = el.pts; });
 
     Object.keys(groups).forEach(gid => {
         const p = groups[gid];
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         path.setAttribute('d', `M ${p[0].x} ${p[0].y} Q ${p[2].x} ${p[2].y} ${p[1].x} ${p[1].y}`);
         path.setAttribute('stroke', 'rgba(29, 158, 117, 0.4)');
-        path.setAttribute('fill', 'none');
-        path.setAttribute('stroke-dasharray', '5,5');
-        path.setAttribute('stroke-width', '15'); // 掴みやすく太めに設定
-        path.style.cursor = 'move';
-        path.style.pointerEvents = 'auto';
-
-        // レールドラッグ開始
+        path.setAttribute('fill', 'none'); path.setAttribute('stroke-dasharray', '5,5'); path.setAttribute('stroke-width', '15');
+        path.style.cursor = 'move'; path.style.pointerEvents = 'auto';
         path.onpointerdown = (e) => {
             if (state.currentTool !== 'select') return;
             e.stopPropagation();
             const rect = document.getElementById('stage').getBoundingClientRect();
-            startDragging({
-                type: 'group',
-                gid: parseFloat(gid),
-                ox: (e.clientX - rect.left) / state.zoom,
-                oy: (e.clientY - rect.top) / state.zoom,
-                originalPts: JSON.parse(JSON.stringify(p))
-            });
+            dragSession = { type: 'group', gid: parseFloat(gid), ox: (e.clientX - rect.left)/state.zoom, oy: (e.clientY - rect.top)/state.zoom, originalPts: JSON.parse(JSON.stringify(p)) };
         };
         svg.appendChild(path);
     });
 
-    // 2. 作成中のガイド線を描画
     if (state.currentTool === 'arc' && state.tempPoints.length > 0) {
         const guide = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         const p = state.tempPoints;
         const rect = document.getElementById('stage').getBoundingClientRect();
-        // マウスの現在地（lastMouseはBaseで管理するか、ここで取る）
-        const mx = (window.lastEvent?.clientX - rect.left) / state.zoom || p[0].x;
-        const my = (window.lastEvent?.clientY - rect.top) / state.zoom || p[0].y;
-
+        const mx = (window.lastX - rect.left) / state.zoom || p[0].x;
+        const my = (window.lastY - rect.top) / state.zoom || p[0].y;
         let d = `M ${p[0].x} ${p[0].y}`;
-        if (p.length === 1) d += ` L ${mx} ${my}`; // 1点目：直線
-        else if (p.length === 2) d += ` Q ${mx} ${my} ${p[1].x} ${p[1].y}`; // 2点目：カーブ
-        
-        guide.setAttribute('d', d);
-        guide.setAttribute('stroke', 'var(--primary)');
-        guide.setAttribute('fill', 'none');
-        guide.setAttribute('stroke-width', '2');
+        if (p.length === 1) d += ` L ${mx} ${my}`;
+        else if (p.length === 2) d += ` Q ${mx} ${my} ${p[1].x} ${p[1].y}`;
+        guide.setAttribute('d', d); guide.setAttribute('stroke', 'var(--primary)'); guide.setAttribute('fill', 'none'); guide.setAttribute('stroke-width', '2');
         svg.appendChild(guide);
     }
 }
 
-/**
- * 移動ロジックの統合
- */
-let dragSession = null;
-function startDragging(data) { dragSession = data; }
-
-// BaseのsetupEventsを拡張（または既存のに追記）
-document.addEventListener('pointermove', (e) => {
-    window.lastEvent = e; // ガイド線描画用
-    if (state.currentTool === 'arc' && state.tempPoints.length > 0) renderSVG();
-
-    if (!dragSession) return;
-
-    const rect = document.getElementById('stage').getBoundingClientRect();
-    const x = (e.clientX - rect.left) / state.zoom;
-    const y = (e.clientY - rect.top) / state.zoom;
-
-    if (dragSession.type === 'group') {
-        const dx = x - dragSession.ox;
-        const dy = y - dragSession.oy;
-        const newPts = dragSession.originalPts.map(p => ({ x: p.x + dx, y: p.y + dy }));
-        
-        state.elements.forEach(el => {
-            if (el.gid === dragSession.gid) {
-                el.pts = newPts;
-                const pos = getPointOnArc(newPts, el.t);
-                el.x = pos.x - el.w / 2;
-                el.y = pos.y - el.h / 2;
-            }
-        });
-        render();
-    }
-});
-
-document.addEventListener('pointerup', () => {
-    if (dragSession) saveHistory();
-    dragSession = null;
-});
-
-// Baseの既存stage.onpointerdownを「弧配置」に対応させるよう修正
-const originalDown = document.getElementById('stage').onpointerdown;
-document.getElementById('stage').onpointerdown = (e) => {
-    const rect = document.getElementById('stage').getBoundingClientRect();
-    const x = (e.clientX - rect.left) / state.zoom;
-    const y = (e.clientY - rect.top) / state.zoom;
-
-    if (state.currentTool === 'arc') {
-        handleArcTool(x, y);
-    } else {
-        originalDown(e);
-    }
-};
-    // --- Parts 3: Multi-Select, Transform, Label List & Clipboard ---
-
-/**
- * 追加のラベルプリセット（現場でよく使う小物・記号）
- */
-const LABEL_PRESETS = ["( )", "Cond.", "Piano", "Harp", "C.B.", "Tuba", "Timps"];
-
-/**
- * 範囲選択用の矩形描画
- */
-const selBox = document.createElement('div');
-selBox.id = 'selection-box';
-selBox.style.cssText = "position:absolute; border:1px solid var(--primary); background:rgba(29,158,117,0.1); pointer-events:none; display:none; z-index:200;";
-document.getElementById('stage').appendChild(selBox);
-
-/**
- * コピー＆ペースト機能
- */
-let clipboard = [];
-window.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'c') copySelection();
-    if ((e.ctrlKey || e.metaKey) && e.key === 'v') pasteSelection();
-    if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
-});
-
-function copySelection() {
-    clipboard = state.elements.filter(el => state.selectedIds.includes(el.id))
-                              .map(el => ({ ...el, id: Math.random() }));
-}
-
-function pasteSelection() {
-    clipboard.forEach(el => {
-        const newEl = { ...el, id: Math.random(), x: el.x + 20, y: el.y + 20 };
-        state.elements.push(newEl);
-        state.selectedIds = [newEl.id];
-    });
-    render();
-    saveHistory();
-}
-
-/**
- * プロパティ編集（選択中の全要素に適用）
- */
-function updateSelected(key, val) {
-    state.elements.forEach(el => {
-        if (state.selectedIds.includes(el.id)) {
-            el[key] = val;
-            if (el.gid) delete el.gid; // 個別に編集したらグループ解除
-        }
-    });
-    render();
-}
-
-/**
- * 範囲選択・変形ロジックの統合
- */
-let boxStart = null;
-
-// 要素をクリックした際のハンドラ
 function handleElementDown(e, el) {
     e.stopPropagation();
     if (state.currentTool !== 'select') return;
-
-    if (!e.shiftKey && !state.selectedIds.includes(el.id)) {
-        state.selectedIds = [el.id];
-    } else if (e.shiftKey) {
-        state.selectedIds.push(el.id);
-    }
-
+    if (!e.shiftKey && !state.selectedIds.includes(el.id)) state.selectedIds = [el.id];
+    else if (e.shiftKey) state.selectedIds.push(el.id);
     const rect = document.getElementById('stage').getBoundingClientRect();
     const x = (e.clientX - rect.left) / state.zoom;
     const y = (e.clientY - rect.top) / state.zoom;
-
-    startDragging({
-        type: 'elem',
-        target: el,
-        group: state.elements.filter(item => state.selectedIds.includes(item.id)).map(item => ({
-            el: item, ox: x - item.x, oy: y - item.y
-        }))
-    });
+    dragSession = { type: 'elem', group: state.elements.filter(item => state.selectedIds.includes(item.id)).map(item => ({ el: item, ox: x - item.x, oy: y - item.y })) };
     render();
 }
 
-// Stageのpointerdownをさらに拡張
-const baseStageDown = document.getElementById('stage').onpointerdown;
-document.getElementById('stage').onpointerdown = (e) => {
-    const rect = document.getElementById('stage').getBoundingClientRect();
-    const x = (e.clientX - rect.left) / state.zoom;
-    const y = (e.clientY - rect.top) / state.zoom;
-
-    if (state.currentTool === 'select' && e.target.id === 'elements-layer') {
-        state.selectedIds = [];
-        boxStart = { x, y };
-        selBox.style.display = 'block';
-    } else if (state.currentTool === 'label') {
-        const text = prompt("テキストを入力してください", "Label");
-        if(text) addElement('label', x, y, { label: text, color: '#333', w: 80, h: 30 });
-    } else if (state.currentTool === 'rect') {
-        addElement('rect', x, y, { label: '', color: '#999', w: 100, h: 60 });
-    } else {
-        baseStageDown(e);
-    }
-};
-
-document.addEventListener('pointermove', (e) => {
-    if (boxStart) {
-        const rect = document.getElementById('stage').getBoundingClientRect();
-        const curX = (e.clientX - rect.left) / state.zoom;
-        const curY = (e.clientY - rect.top) / state.zoom;
-        
-        const x1 = Math.min(boxStart.x, curX), y1 = Math.min(boxStart.y, curY);
-        const x2 = Math.max(boxStart.x, curX), y2 = Math.max(boxStart.y, curY);
-        
-        selBox.style.left = x1 + 'px'; selBox.style.top = y1 + 'px';
-        selBox.style.width = (x2 - x1) + 'px'; selBox.style.height = (y2 - y1) + 'px';
-
-        state.selectedIds = state.elements.filter(el => 
-            el.x > x1 && el.x < x2 && el.y > y1 && el.y < y2
-        ).map(el => el.id);
-        render();
-    }
-    
-    // パーツ1の移動ロジック継続
-    if (dragSession && dragSession.type === 'elem') {
-        const rect = document.getElementById('stage').getBoundingClientRect();
+// --- Events ---
+function setupEvents() {
+    const stage = document.getElementById('stage');
+    stage.onpointerdown = (e) => {
+        const rect = stage.getBoundingClientRect();
         const x = (e.clientX - rect.left) / state.zoom;
         const y = (e.clientY - rect.top) / state.zoom;
-        dragSession.group.forEach(g => {
-            g.el.x = x - g.ox;
-            g.el.y = y - g.oy;
-        });
-        render();
-    }
-});
 
-document.addEventListener('pointerup', () => {
-    boxStart = null;
-    selBox.style.display = 'none';
-});
-
-// 削除機能
-function deleteSelected() {
-    state.elements = state.elements.filter(el => !state.selectedIds.includes(el.id));
-    state.selectedIds = [];
-    render();
-    saveHistory();
-}
-
-// 初期化
-window.onload = () => {
-    setupEvents();
-    render();
-};
-
-// ユーティリティ
-function addElement(type, x, y, opts = {}) {
-    const newEl = {
-        id: Date.now() + Math.random(),
-        type, x, y, 
-        w: opts.w || CHAIR_SIZE, 
-        h: opts.h || CHAIR_SIZE,
-        color: opts.color || '#333',
-        label: opts.label || '',
-        ...opts
+        if (state.currentTool === 'chair') {
+            addElement('chair', x - 13, y - 13);
+        } else if (state.currentTool === 'arc') {
+            state.tempPoints.push({x, y});
+            if (state.tempPoints.length === 3) {
+                const n = parseInt(prompt("椅子の数", "5"));
+                if (n) {
+                    const gid = Date.now();
+                    for (let i = 0; i < n; i++) {
+                        const t = n > 1 ? i / (n - 1) : 0.5;
+                        const pos = getPointOnArc(state.tempPoints, t);
+                        state.elements.push({ id: Math.random(), type: 'chair', x: pos.x-13, y: pos.y-13, w:26, h:26, color: currentInst.c, label: currentInst.l, gid, pts: JSON.parse(JSON.stringify(state.tempPoints)), t });
+                    }
+                    saveHistory();
+                }
+                state.tempPoints = [];
+            }
+            render();
+        } else if (state.currentTool === 'select' && (e.target.id === 'stage' || e.target.id === 'elements-layer')) {
+            state.selectedIds = [];
+            boxStart = { x, y };
+            document.getElementById('selection-box').style.display = 'block';
+            render();
+        } else if (state.currentTool === 'label') {
+            const txt = prompt("テキスト", "Label");
+            if(txt) addElement('label', x, y, { label: txt, w: 80, h: 30 });
+        } else if (state.currentTool === 'rect') {
+            addElement('rect', x, y, { w: 100, h: 60, label: '' });
+        }
     };
-    state.elements.push(newEl);
-    saveHistory();
-    render();
+
+    window.onpointermove = (e) => {
+        window.lastX = e.clientX; window.lastY = e.clientY;
+        const rect = stage.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / state.zoom;
+        const y = (e.clientY - rect.top) / state.zoom;
+
+        if (dragSession) {
+            if (dragSession.type === 'elem') {
+                dragSession.group.forEach(g => { g.el.x = x - g.ox; g.el.y = y - g.oy; if(g.el.gid) delete g.el.gid; });
+            } else if (dragSession.type === 'group') {
+                const dx = x - dragSession.ox, dy = y - dragSession.oy;
+                const newPts = dragSession.originalPts.map(p => ({ x: p.x + dx, y: p.y + dy }));
+                state.elements.forEach(el => { if (el.gid === dragSession.gid) { el.pts = newPts; const pos = getPointOnArc(newPts, el.t); el.x = pos.x - el.w/2; el.y = pos.y - el.h/2; } });
+            }
+            render();
+        } else if (boxStart) {
+            const x1 = Math.min(boxStart.x, x), y1 = Math.min(boxStart.y, y);
+            const x2 = Math.max(boxStart.x, x), y2 = Math.max(boxStart.y, y);
+            const sb = document.getElementById('selection-box');
+            sb.style.left = x1+'px'; sb.style.top = y1+'px'; sb.style.width = (x2-x1)+'px'; sb.style.height = (y2-y1)+'px';
+            state.selectedIds = state.elements.filter(el => el.x > x1 && el.x < x2 && el.y > y1 && el.y < y2).map(el => el.id);
+            render();
+        } else if (state.currentTool === 'arc') { renderSVG(); }
+    };
+
+    window.onpointerup = () => { if (dragSession || boxStart) saveHistory(); dragSession = null; boxStart = null; document.getElementById('selection-box').style.display = 'none'; };
 }
 
-function saveHistory() {
-    state.history = state.history.slice(0, state.historyIndex + 1);
-    state.history.push(JSON.stringify(state.elements));
-    state.historyIndex++;
+// --- Sidebar ---
+function initSidebar() {
+    const sb = document.getElementById('sidebar');
+    sb.innerHTML = `<div style="display:flex;"><div class="tab active" onclick="switchTab('woodwind')" id="t-woodwind">木管</div><div class="tab" onclick="switchTab('brass')" id="t-brass">金管</div><div class="tab" onclick="switchTab('perc')" id="t-perc">打楽</div></div><div id="inst-cont" style="flex:1; overflow-y:auto; background:white;"></div>`;
+    switchTab('woodwind');
+}
+function switchTab(cat) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(`t-${cat}`).classList.add('active');
+    const cont = document.getElementById('inst-cont');
+    cont.innerHTML = '';
+    INSTRUMENTS[cat].forEach(inst => {
+        const div = document.createElement('div');
+        div.style.padding = '12px'; div.style.cursor = 'pointer'; div.style.borderBottom = '1px solid #f0f0f0'; div.style.fontSize = '13px';
+        div.innerHTML = `<span style="display:inline-block; width:12px; height:12px; background:${inst.c}; border-radius:50%; margin-right:8px;"></span>${inst.l}`;
+        div.onclick = () => { currentInst = inst; setTool('chair'); };
+        cont.appendChild(div);
+    });
 }
 
-function undo() {
-    if (state.historyIndex > 0) {
-        state.historyIndex--;
-        state.elements = JSON.parse(state.history[state.historyIndex]);
-        render();
-    }
-}
+// --- Utils ---
+function getPointOnArc(p, t) { return { x: Math.pow(1-t, 2)*p[0].x + 2*(1-t)*t*p[2].x + Math.pow(t, 2)*p[1].x, y: Math.pow(1-t, 2)*p[0].y + 2*(1-t)*t*p[2].y + Math.pow(t, 2)*p[1].y }; }
+function setTool(t) { state.currentTool = t; state.tempPoints = []; document.querySelectorAll('#toolbar button').forEach(b => b.classList.toggle('active', b.id === `tool-${t}`)); render(); }
+function addElement(type, x, y, opts = {}) { const el = { id: Math.random(), type, x, y, w: opts.w || 26, h: opts.h || 26, color: opts.color || currentInst.c, label: opts.label || currentInst.l, ...opts }; state.elements.push(el); saveHistory(); render(); }
+function saveHistory() { state.history = state.history.slice(0, state.historyIndex + 1); state.history.push(JSON.stringify(state.elements)); state.historyIndex++; }
+function undo() { if (state.historyIndex > 0) { state.historyIndex--; state.elements = JSON.parse(state.history[state.historyIndex]); render(); } }
+function deleteSelected() { state.elements = state.elements.filter(el => !state.selectedIds.includes(el.id)); state.selectedIds = []; render(); saveHistory(); }
+function exportJSON() { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(state.elements)])); a.download = 'layout.json'; a.click(); }
 
-// 仮のSVG描画（後で詳細ロジックをAdd-onで追加）
-function renderSVG() {
-    const svg = document.getElementById('svg-layer');
-    svg.innerHTML = '';
-}
+window.onload = () => { setupEvents(); initSidebar(); render(); };
 </script>
 </body>
 </html>
