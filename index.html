@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>舞台配置図 Pro v17.9</title>
+<title>舞台配置図 Pro v17.9.1</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
@@ -28,8 +28,7 @@ button:hover{background:#f0f0ee;}
 button.active{background:#e1f5ee;border-color:#1d9e75;color:#0f6e56;font-weight:600;}
 
 input[type=range]{width:60px;cursor:pointer;vertical-align:middle;}
-.val-disp{min-width:35px;display:inline-block;font-weight:bold;color:#1d9e75;text-align:right;}
-input[type=number]{width:48px;padding:3px 5px;font-size:11px;border:1px solid #ccc;border-radius:4px;}
+input[type=number]{width:45px;padding:2px 4px;font-size:11px;border:1px solid #ccc;border-radius:4px;text-align:center;}
 
 /* Main Layout */
 #main{display:flex;flex:1;overflow:hidden;}
@@ -51,9 +50,9 @@ input[type=number]{width:48px;padding:3px 5px;font-size:11px;border:1px solid #c
 /* Elements */
 .elem{position:absolute;cursor:move;user-select:none;touch-action:none;z-index:10;pointer-events:auto;}
 .chair{border-radius:50%;border:2px solid;background:white;display:flex;align-items:center;justify-content:center;font-weight:600;width:100%;height:100%;}
-.chair-text{position:absolute;white-space:nowrap;pointer-events:none;text-align:center;}
+.chair-text{position:absolute;white-space:nowrap;pointer-events:none;text-align:center;line-height:1;}
 .elem.selected{outline:2px solid #1d9e75;outline-offset:4px;}
-.label-elem{background:white;border:1px solid #aaa;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:11px;padding:2px;text-align:center;}
+.label-elem{background:white;border:1px solid #aaa;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:10px;padding:2px;text-align:center;}
 .rect-elem{border:2px solid #555;background:rgba(200,200,200,0.1);display:flex;align-items:center;justify-content:center;}
 .dim-elem{pointer-events:auto;}
 .dim-line{position:absolute;height:2px;background:#1d9e75;transform-origin:0 50%;}
@@ -85,10 +84,11 @@ input[type=number]{width:48px;padding:3px 5px;font-size:11px;border:1px solid #c
   </div>
   <div class="tb-sep"></div>
   <div class="tb-group">
-    ズーム:<input type="range" id="zoom-range" min="0.3" max="1.5" step="0.05" value="1.0" oninput="changeZoom(this.value)">
-    <span class="val-disp" id="zoom-val">100%</span>
-    椅子サイズ:<input type="range" id="size-range" min="15" max="50" step="1" value="26" oninput="updateSizeSetting(this.value)">
-    <span class="val-disp" id="size-val">26px</span>
+    ズーム:<input type="range" id="zoom-range" min="30" max="150" step="5" value="100" oninput="changeZoom(this.value)">
+    <input type="number" id="zoom-input" value="100" min="30" max="150" onchange="changeZoom(this.value)">%
+    
+    椅子サイズ:<input type="range" id="size-range" min="15" max="60" step="1" value="26" oninput="updateSizeSetting(this.value)">
+    <input type="number" id="size-input" value="26" min="15" max="60" onchange="updateSizeSetting(this.value)">px
   </div>
   <div class="tb-sep"></div>
   <div class="tb-group">
@@ -142,7 +142,7 @@ const MAIN_INST=[
   {l:"Eu",c:"#08a"},{l:"Stb",c:"#555"}
 ];
 
-const PERC_COLOR = "#2a4a8a"; // 地味じゃない打楽器用ディープブルー
+const PERC_COLOR = "#2a4a8a"; 
 const PERC_LABELS=["BD","Chime","Harp","Piano","Vib.","Xlo.","Marb.","Glo.","W.C.","T.-tam","Timb.","Bongos","Congas","StPa","Base","Synth."];
 const PERC_CHAIRS=["Timp.","S.D.","4Tom","S.Cym","C.Cym","Drm","Bongos","Congas"];
 const PERC_MARCHING=["M.S.D.","M.BD1","M.BD2","M.BD3","M.BD4","TD"];
@@ -191,7 +191,7 @@ function renderPercList(){
         if(isCircle){
            currentInst={l:l, c:PERC_COLOR}; setTool('chair');
         } else {
-           addElem('label',400,300,{text:l, color:PERC_COLOR, w:60, h:40});
+           addElem('label',400,300,{text:l, color:PERC_COLOR, w:45, h:25});
            setTool('select');
         }
       };
@@ -222,36 +222,31 @@ function setTool(t){
 function updateHint(){
   const h=document.getElementById('hint-box');
   let text = {
-    select:"要素をクリックして選択。ドラッグで移動。Delキーで削除。",
-    chair:`クリックして配置。現在のサイズ: ${currentChairSize}px`,
+    select:"要素を選択してドラッグで移動。Delキーで削除。",
+    chair:`配置: ${currentChairSize}px。スライダーでサイズ変更。`,
     arc:"3クリックで弧状に配置します。",
     line:"2クリックで直線状に配置します。",
-    dim:"2クリックで寸法を表示します。",
-    label:"クリックしてラベルを配置します。",
-    rect:"クリックして四角形を配置します。"
+    dim:"2クリックで寸法を表示。",
+    label:"クリックで小型ラベルを配置。",
+    rect:"クリックで四角形を配置。"
   }[tool] || "ツールを選択してください。";
   h.innerHTML = `💡 ヒント: ${text}`;
 }
 
 function changeZoom(v){ 
-  zoomLevel=parseFloat(v); 
+  const val = parseInt(v);
+  zoomLevel = val / 100; 
+  document.getElementById('zoom-range').value = val;
+  document.getElementById('zoom-input').value = val;
   document.getElementById('zoom-container').style.transform=`scale(${zoomLevel})`; 
-  document.getElementById('zoom-val').textContent = Math.round(zoomLevel * 100) + "%";
 }
 
 function updateSizeSetting(v){
-  currentChairSize = parseInt(v);
-  document.getElementById('size-val').textContent = v + "px";
-  // 椅子および円形楽器を一括更新
-  elements.forEach(s => {
-    if(s.type === 'chair') {
-       s.w = s.h = currentChairSize;
-       s.dom.style.width = s.w + 'px';
-       s.dom.style.height = s.h + 'px';
-       const txt = s.dom.querySelector('.chair-text');
-       if(txt) txt.style.fontSize = (s.w/3.2) + 'px';
-    }
-  });
+  const val = parseInt(v);
+  currentChairSize = val;
+  document.getElementById('size-range').value = val;
+  document.getElementById('size-input').value = val;
+  updateHint();
 }
 
 function setupEvents(){
@@ -297,7 +292,7 @@ function onDown(e){
   }
   if(tool==='select') clearSelection();
   else if(tool==='chair') addElem('chair',pt.x-currentChairSize/2,pt.y-currentChairSize/2);
-  else if(tool==='label') addElem('label',pt.x-30,pt.y-20,{text:prompt('ラベル内容','')||'Label', color:PERC_COLOR, w:60, h:40});
+  else if(tool==='label') addElem('label',pt.x-22,pt.y-12,{text:prompt('ラベル内容','')||'Label', color:PERC_COLOR, w:45, h:25});
   else if(tool==='rect') addElem('rect',pt.x-50,pt.y-30);
   else if(tool==='arc') handleArc(pt);
   else if(tool==='line') handleLine(pt);
@@ -336,7 +331,9 @@ function addElem(type,x,y,opts={}){
   div.style.width=w+'px'; div.style.height=h+'px'; div.style.transform=`rotate(${ang}deg)`;
   
   if(type==='chair'){
-    div.innerHTML=`<div class="chair" style="border-color:${color};color:${color}"><div class="chair-text" style="font-size:${w/3.2}px">${opts.label||currentInst.l}</div></div>`;
+    // フォントサイズの計算をさらに小さく調整 (w/4)
+    const fontSize = Math.max(7, w / 4);
+    div.innerHTML=`<div class="chair" style="border-color:${color};color:${color}"><div class="chair-text" style="font-size:${fontSize}px">${opts.label||currentInst.l}</div></div>`;
   } else if(type==='dim'){
     div.className='elem dim-elem'; div.style.width='auto'; div.style.height='auto';
     div.innerHTML=`<div class="dim-line" style="width:${w}px;transform:rotate(${ang}deg)"></div><div class="dim-text" style="left:${w/2}px">${opts.text}</div>`;
