@@ -3,382 +3,234 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>舞台配置図 Pro v20.0</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<title>舞台配置図 Pro v20.1</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
-body{display:flex;flex-direction:column;height:100vh;font-family:-apple-system,'Hiragino Sans','Noto Sans JP',sans-serif;background:#d8d6cf;overflow:hidden;touch-action:none;}
+body{display:flex;flex-direction:column;height:100vh;font-family:sans-serif;background:#d8d6cf;overflow:hidden;touch-action:none;}
 
 /* Toolbar */
-#toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:5px 10px;background:white;border-bottom:1px solid #ddd;min-height:42px;flex-shrink:0;z-index:100;}
-.tb-group{display:flex;align-items:center;gap:4px;font-size:11px;}
-.tb-sep{width:1px;height:22px;background:#e0e0e0;margin:0 2px;}
+#toolbar{display:flex;align-items:center;gap:6px;padding:5px 10px;background:white;border-bottom:1px solid #ddd;z-index:100;overflow-x:auto;}
+button{padding:6px 10px;font-size:11px;border:1px solid #ccc;border-radius:5px;background:white;cursor:pointer;white-space:nowrap;}
+button.active{background:#e1f5ee;border-color:#1d9e75;color:#0f6e56;font-weight:bold;}
+.val-input {width:45px;height:22px;border:1px solid #1d9e75;border-radius:4px;text-align:center;font-size:11px;}
 
-button{padding:6px 10px;font-size:11px;border:1px solid #ccc;border-radius:5px;background:white;cursor:pointer;color:#333;white-space:nowrap;transition:background .12s;}
-button:hover{background:#f0f0ee;}
-button.active{background:#e1f5ee;border-color:#1d9e75;color:#0f6e56;font-weight:600;}
-button.btn-del{background:#fff0f0;color:#d33;border-color:#ffcccc;}
-
-.val-input {width:45px;height:22px;border:1px solid #1d9e75;border-radius:4px;background:#f0f7f5;text-align:center;font-weight:bold;color:#1d9e75;outline:none;font-size:11px;}
-input[type=range]{width:60px;cursor:pointer;vertical-align:middle;}
-
-/* Layout */
 #main{display:flex;flex:1;overflow:hidden;}
-#sidebar{width:175px;background:white;border-right:1px solid #ddd;display:flex;flex-direction:column;flex-shrink:0;}
-.tabs{display:flex;border-bottom:1px solid #eee;background:#f9f9f9;}
-.tab{flex:1;padding:10px 2px;text-align:center;cursor:pointer;font-size:10px;color:#888;border-bottom:2px solid transparent;}
-.tab.active{border-bottom:2px solid #1d9e75;color:#1d9e75;font-weight:600;background:white;}
-.inst-list{flex:1;overflow-y:auto;padding-bottom:20px;}
-.inst{padding:8px 10px;font-size:11px;border-bottom:1px solid #f0f0f0;cursor:pointer;display:flex;align-items:center;gap:6px;}
+#sidebar{width:160px;background:white;border-right:1px solid #ddd;display:flex;flex-direction:column;flex-shrink:0;}
+.inst-list{flex:1;overflow-y:auto;}
+.inst{padding:8px 10px;font-size:11px;border-bottom:1px solid #f0f0f0;cursor:pointer;}
 
-#canvas-wrap{flex:1;overflow:auto;position:relative;background:#d8d6cf;user-select:none;}
+#canvas-wrap{flex:1;overflow:auto;position:relative;background:#d8d6cf;}
 #zoom-container{transform-origin:top left;position:absolute;top:20px;left:20px;}
-#stage{position:relative;background:white;border:1px solid #aaa;box-shadow:0 2px 16px rgba(0,0,0,0.18);touch-action:none;}
-#bg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;display:none;}
-.stage-grid{position:absolute;inset:0;pointer-events:none;z-index:2;background-image:linear-gradient(rgba(0,0,0,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.05) 1px,transparent 1px);background-size:30px 30px;}
-#svg-layer{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:3;}
+#stage{position:relative;background:white;border:1px solid #aaa;box-shadow:0 2px 10px rgba(0,0,0,0.2);touch-action:none;}
+#svg-layer{position:absolute;inset:0;pointer-events:none;z-index:30;}
 
-/* Elements - UI Adjustments */
-.elem{position:absolute;cursor:move;user-select:none;touch-action:none;z-index:10;pointer-events:auto;}
-.chair{border-radius:50%;border:2px solid;background:white;display:flex;align-items:center;justify-content:center;font-weight:600;width:100%;height:100%;}
-.chair-text{position:absolute;white-space:nowrap;pointer-events:none;text-align:center;}
+/* Elements */
+.elem{position:absolute;cursor:move;z-index:10;pointer-events:auto;}
+.chair{border-radius:50%;border:2px solid;background:white;display:flex;align-items:center;justify-content:center;font-weight:bold;width:100%;height:100%;}
+.chair-text{position:absolute;white-space:nowrap;pointer-events:none;font-size:9px;}
 .elem.selected{outline:2px solid #1d9e75;outline-offset:4px;}
-
-/* Label & Rect Slim-down */
-.label-elem{background:white;border:1px solid #aaa;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:10px;padding:2px 6px;white-space:nowrap;overflow:hidden;}
-.rect-elem{border:2px solid #555;background:rgba(200,200,200,0.1);display:flex;align-items:center;justify-content:center;border-radius:2px;}
-
-/* Selection Box */
-#selection-box{position:absolute;border:1px dashed #1d9e75;background:rgba(29,158,117,0.1);pointer-events:none;z-index:1000;display:none;}
+.label-elem{background:white;border:1px solid #aaa;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:10px;padding:2px 6px;white-space:nowrap;}
 
 /* Handles */
-.handle{position:absolute;width:12px;height:12px;background:#1d9e75;border:2px solid white;border-radius:50%;z-index:25;display:none;}
+.handle{position:absolute;width:10px;height:10px;background:#1d9e75;border:1px solid white;border-radius:50%;z-index:25;display:none;}
 .elem.selected .handle{display:block;}
-.nw{top:-6px;left:-6px;cursor:nwse-resize;}
-.se{bottom:-6px;right:-6px;cursor:nwse-resize;}
-.rot{top:-25px;left:calc(50% - 6px);cursor:crosshair;background:#ff9800;}
+.se{bottom:-5px;right:-5px;cursor:nwse-resize;}
 
-#guide-panel{position:fixed;top:55px;left:190px;background:white;border:1px solid #ccc;border-radius:8px;padding:12px;box-shadow:0 4px 15px rgba(0,0,0,0.15);display:none;z-index:1000;font-size:12px;min-width:160px;}
-.step{display:flex;align-items:center;gap:8px;margin:5px 0;opacity:0.3;}
-.step.active{opacity:1;color:#1d9e75;font-weight:bold;}
-
-#props-bar{padding:5px 12px;background:white;border-top:1px solid #eee;font-size:11px;display:flex;align-items:center;justify-content:space-between;min-height:40px;flex-shrink:0;}
-#props{display:flex;align-items:center;gap:10px;}
-#hint-box{color:#666;background:#f5f5f5;padding:4px 10px;border-radius:4px;border-left:3px solid #1d9e75;}
+#props-bar{padding:5px 12px;background:white;border-top:1px solid #eee;font-size:11px;min-height:35px;}
 </style>
 </head>
 <body>
 
 <div id="toolbar">
-  <div class="tb-group">
     <button id="btn-select" class="active" onclick="setTool('select')">▷ 選択</button>
     <button id="btn-chair" onclick="setTool('chair')">○ 椅子</button>
     <button id="btn-arc" onclick="setTool('arc')">⌒ 弧配置</button>
     <button id="btn-line" onclick="setTool('line')">｜ 線配置</button>
     <button id="btn-label" onclick="setTool('label')">Ａ ラベル</button>
-    <button id="btn-rect" onclick="setTool('rect')">□ 四角</button>
-    <button id="btn-dim" onclick="setTool('dim')">↔ 寸法</button>
-  </div>
-  <div class="tb-sep"></div>
-  <div class="tb-group">
-    <button class="btn-del" onclick="deleteSelected()">🗑 削除</button>
-  </div>
-  <div class="tb-sep"></div>
-  <div class="tb-group">
-    ズーム:<input type="range" id="zoom-range" min="0.3" max="1.5" step="0.05" value="1.0" oninput="syncZoom(this.value, 'range')">
-    <input type="number" id="zoom-num" class="val-input" min="30" max="150" step="5" value="100" oninput="syncZoom(this.value, 'num')">%
-  </div>
-  <div class="tb-sep"></div>
-  <div class="tb-group">
-    <button onclick="undo()">↩ 戻す</button>
-    <button onclick="redo()">↪ 進む</button>
-  </div>
-  <div class="tb-sep"></div>
-  <div class="tb-group">
-    <button onclick="exportTemplate()">💾 保存</button>
-    <button onclick="importTemplate()">📂 読込</button>
-    <button onclick="exportPNG()" style="background:#1d9e75;color:white;">📷 画像</button>
-  </div>
+    <span style="font-size:11px;margin-left:10px;">ズーム:</span>
+    <input type="number" id="zoom-num" class="val-input" value="100" oninput="syncZoom(this.value)">%
+    <button onclick="deleteSelected()" style="margin-left:auto;color:red;">🗑 削除</button>
 </div>
 
 <div id="main">
-  <div id="sidebar">
-    <div class="tabs">
-      <div class="tab active" id="tab-main-btn" onclick="switchTab('main')">木・金</div>
-      <div class="tab" id="tab-other-btn" onclick="switchTab('other')">その他</div>
-      <div class="tab" id="tab-perc-btn" onclick="switchTab('perc')">Perc.</div>
+    <div id="sidebar">
+        <div id="list-main" class="inst-list"></div>
     </div>
-    <div id="list-main" class="inst-list"></div>
-    <div id="list-other" class="inst-list" style="display:none"></div>
-    <div id="list-perc" class="inst-list" style="display:none"></div>
-  </div>
-  <div id="canvas-wrap">
-    <div id="zoom-container">
-      <div id="stage" style="width:960px;height:700px;">
-        <canvas id="bg"></canvas>
-        <div class="stage-grid"></div>
-        <svg id="svg-layer"></svg>
-        <div id="selection-box"></div>
-      </div>
+    <div id="canvas-wrap">
+        <div id="zoom-container">
+            <div id="stage" style="width:960px;height:700px;">
+                <svg id="svg-layer"></svg>
+            </div>
+        </div>
     </div>
-  </div>
-</div>
-
-<div id="guide-panel">
-  <div id="guide-title" style="font-weight:bold;margin-bottom:8px;"></div>
-  <div id="guide-steps"></div>
 </div>
 
 <div id="props-bar">
-  <div id="props">要素を選択して編集</div>
-  <div id="hint-box">💡 ヒント: ツールを選択してください</div>
+    <span id="hint">💡 弧ツール：1点目(始点)→2点目(終点)→3点目(頂点)の順にクリック</span>
 </div>
 
 <script>
-const MAIN_INST=[{l:"Pic",c:"#e35"},{l:"Fl",c:"#e35"},{l:"Ob",c:"#c44"},{l:"B♭Cl",c:"#36a"},{l:"B.Cl",c:"#36a"},{l:"A.Sax",c:"#1a8"},{l:"T.Sax",c:"#1a8"},{l:"B.Sax",c:"#1a8"},{l:"Fg",c:"#c44"},{l:"Tp",c:"#c70"},{l:"Tb",c:"#a84"},{l:"Hr",c:"#84a"},{l:"Tu",c:"#08a"},{l:"Eu",c:"#08a"},{l:"Stb",c:"#555"}];
-const OTHER_INST=[{l:"Cor Angl.",c:"#c44"},{l:"E♭Cl",c:"#36a"},{l:"A.Cl",c:"#36a"},{l:"CA.Cl",c:"#36a"},{l:"S.Sax",c:"#1a8"}];
-const PERC_LIST=["BD","Chime","Harp","Piano","Vib.","Xlo.","Marb.","Glo.","W.C.","T.-tam","Timb.","Bongos","Congas","StPa","Base","Synth.","Timp.","S.D.","4Tom","S.Cym","C.Cym","Drm"];
-
+const INSTS = [{l:"Fl",c:"#e35"},{l:"Cl",c:"#36a"},{l:"Sax",c:"#1a8"},{l:"Tp",c:"#c70"},{l:"Tb",c:"#a84"},{l:"Hr",c:"#84a"},{l:"Tu",c:"#08a"}];
 let elements=[], selectedList=[], tool='select';
-let zoomLevel=1.0, currentChairSize=26, idCounter=0, gCounter=0;
-let currentInst=MAIN_INST[0], isShift=false;
-let draggingObjs=[], resizingObj=null, resizeHandle='', rotatingObj=null;
-let arcPts=[], linePts=[], dimPts=[], history=[], historyIndex=-1;
-let selectStart=null, isSelecting=false;
+let zoomLevel=1.0, currentInst=INSTS[0];
+let arcPts=[], draggingObjs=[], resizingObj=null;
+const stage=document.getElementById('stage'), svg=document.getElementById('svg-layer');
 
-const stage=document.getElementById('stage');
-const svg=document.getElementById('svg-layer');
-
-function init(){ renderList(MAIN_INST,'list-main'); renderList(OTHER_INST,'list-other'); renderPercList(); setupEvents(); saveHistory(); updateHint(); updateGuide(); }
-
-function renderList(list,id){ 
-  const container=document.getElementById(id); 
-  list.forEach(inst=>{ 
-    const div=document.createElement('div'); 
-    div.className='inst'; 
-    div.innerHTML=`<span style="width:10px;height:10px;background:${inst.c};border-radius:50%"></span>${inst.l}`; 
-    div.onclick=()=>{ currentInst=inst; if(tool==='select') setTool('chair'); }; 
-    container.appendChild(div); 
-  }); 
+function init(){
+    const list = document.getElementById('list-main');
+    INSTS.forEach(inst => {
+        const div = document.createElement('div');
+        div.className = 'inst';
+        div.innerHTML = `<span style="display:inline-block;width:8px;height:8px;background:${inst.c};margin-right:5px;"></span>${inst.l}`;
+        div.onclick = () => { currentInst=inst; setTool('chair'); };
+        list.appendChild(div);
+    });
+    setupEvents();
 }
 
-function renderPercList(){ 
-  const container=document.getElementById('list-perc'); 
-  PERC_LIST.forEach(l=>{ 
-    const div=document.createElement('div'); 
-    div.className='inst'; 
-    div.innerHTML=`<span style="width:10px;height:10px;background:#2a4a8a;border-radius:2px"></span>${l}`; 
-    div.onclick=()=>{ addElem('label',400,300,{text:l, color:"#2a4a8a"}); setTool('select'); }; 
-    container.appendChild(div); 
-  }); 
+function setTool(t){ 
+    tool=t; arcPts=[]; refreshSVG();
+    document.querySelectorAll('#toolbar button').forEach(b=>b.classList.remove('active'));
+    document.getElementById('btn-'+t)?.classList.add('active');
 }
 
-function switchTab(t){ ['main','other','perc'].forEach(k=>{ document.getElementById(`list-${k}`).style.display=t===k?'block':'none'; document.getElementById(`tab-${k}-btn`).className='tab '+(t===k?'active':''); }); }
-function setTool(t){ tool=t; arcPts=[]; linePts=[]; dimPts=[]; refreshSVG(); document.querySelectorAll('button[id^=btn-]').forEach(b=>b.classList.remove('active')); document.getElementById('btn-'+t)?.classList.add('active'); updateHint(); updateGuide(); }
-function syncZoom(val, src){ zoomLevel=(src==='range')?parseFloat(val):parseFloat(val)/100; document.getElementById('zoom-num').value=Math.round(zoomLevel*100); document.getElementById('zoom-range').value=zoomLevel; document.getElementById('zoom-container').style.transform=`scale(${zoomLevel})`; }
-
-function saveHistory(){
-  const s=JSON.stringify({elements:elements.map(e=>({type:e.type,x:e.x,y:e.y,w:e.w,h:e.h,angle:e.angle,color:e.color,label:e.label,text:e.text,gid:e.gid,pathType:e.pathType,pathPts:e.pathPts,pathT:e.pathT}))});
-  history=history.slice(0,historyIndex+1); history.push(s); if(history.length>50)history.shift(); else historyIndex++;
-}
-function undo(){ if(historyIndex>0){ historyIndex--; applyState(); } }
-function redo(){ if(historyIndex<history.length-1){ historyIndex++; applyState(); } }
-function applyState(){
-  const s=JSON.parse(history[historyIndex]); elements.forEach(e=>e.dom.remove()); elements=[];
-  s.elements.forEach(en=>addElem(en.type,en.x,en.y,en)); clearSelection(); refreshSVG();
-}
+function syncZoom(v){ zoomLevel=v/100; document.getElementById('zoom-container').style.transform=`scale(${zoomLevel})`; }
 
 function addElem(type,x,y,opts={}){
-  const id=opts.id||++idCounter;
-  const div=document.createElement('div');
-  div.className='elem'; div.dataset.id=id;
-  div.style.left=x+'px'; div.style.top=y+'px';
-  
-  // Size Adjustment
-  let w = opts.w || (type==='chair'?currentChairSize:(type==='label'?45:50));
-  let h = opts.h || (type==='chair'?currentChairSize:(type==='label'?20:35));
-  
-  const ang=opts.angle||0, color=opts.color||(type==='chair'?currentInst.c:'#555');
-  div.style.width=w+'px'; div.style.height=h+'px'; div.style.transform=`rotate(${ang}deg)`;
-  
-  if(type==='chair'){
-    div.innerHTML=`<div class="chair" style="border-color:${color};color:${color}"><div class="chair-text" style="font-size:${w/3.2}px">${opts.label||currentInst.l}</div></div>`;
-  } else {
-    div.className+=(type==='label'?' label-elem':' rect-elem');
-    div.style.borderColor=color; div.style.color=color; div.textContent=opts.text||'';
-    ['nw','se','rot'].forEach(p=>{ const h=document.createElement('div'); h.className='handle '+p; if(p!=='rot') h.dataset.pos=p; div.appendChild(h); });
-  }
-  stage.appendChild(div);
-  const rec={id,type,dom:div,x,y,w,h,angle:ang,color,label:opts.label||'',text:opts.text||'',gid:opts.gid||null,pathType:opts.pathType||null,pathPts:opts.pathPts||null,pathT:opts.pathT||0};
-  elements.push(rec); return rec;
+    const id=Date.now()+Math.random();
+    const div=document.createElement('div');
+    div.className='elem'; div.dataset.id=id;
+    div.style.left=x+'px'; div.style.top=y+'px';
+    let w=opts.w||30, h=opts.h||30;
+    div.style.width=w+'px'; div.style.height=h+'px';
+    
+    if(type==='chair'){
+        div.innerHTML=`<div class="chair" style="border-color:${opts.color};color:${opts.color}"><div class="chair-text">${opts.label}</div></div>`;
+    } else {
+        div.className+=' label-elem'; div.textContent=opts.text;
+        const hand=document.createElement('div'); hand.className='handle se'; div.appendChild(hand);
+    }
+    stage.appendChild(div);
+    const rec={id,type,dom:div,x,y,w,h,color:opts.color,label:opts.label,text:opts.text,gid:opts.gid,pathPts:opts.pathPts,pathT:opts.pathT};
+    elements.push(rec); return rec;
 }
 
-function getPosOnPath(type,pts,t){
-  if(type==='arc'){
-    const [p1,p2,p3]=pts;
-    const x=Math.pow(1-t,2)*p1.x+2*(1-t)*t*p3.x+Math.pow(t,2)*p2.x;
-    const y=Math.pow(1-t,2)*p1.y+2*(1-t)*t*p3.y+Math.pow(t,2)*p2.y;
-    return {x,y};
-  } else if(type==='line'){
-    const [p1,p2]=pts;
-    return {x:p1.x+(p2.x-p1.x)*t, y:p1.y+(p2.y-p1.y)*t};
-  }
-  return null;
-}
-
+// 作成後のガイド線描画（緑色の点線）
 function refreshSVG(){
-  svg.innerHTML='';
-  const gids=new Set();
-  elements.forEach(el=>{
-    if(el.gid && el.pathType && el.pathPts && !gids.has(el.gid)){
-      gids.add(el.gid);
-      const [p1,p2,p3]=el.pathPts;
-      const path=document.createElementNS('http://www.w3.org/2000/svg', el.pathType==='arc'?'path':'line');
-      if(el.pathType==='arc'){
-        path.setAttribute('d',`M${p1.x},${p1.y} Q${p3.x},${p3.y} ${p2.x},${p2.y}`);
-      } else {
-        path.setAttribute('x1',p1.x); path.setAttribute('y1',p1.y); path.setAttribute('x2',p2.x); path.setAttribute('y2',p2.y);
-      }
-      path.setAttribute('stroke','rgba(29,158,117,0.5)'); // 完成後の緑色点線
-      path.setAttribute('stroke-dasharray','5,5');
-      path.setAttribute('fill','none');
-      path.setAttribute('stroke-width','8'); // 当たり判定
-      path.style.cursor='pointer'; path.style.pointerEvents='auto';
-      path.onclick=(e)=>{ 
-        e.stopPropagation(); clearSelection(); 
-        elements.filter(x=>x.gid===el.gid).forEach(m=>{ m.dom.classList.add('selected'); selectedList.push(m); });
-        draggingObjs = selectedList.map(o => ({obj:o, ox:0, oy:0})); // 簡易一括移動
-      };
-      svg.appendChild(path);
-    }
-  });
+    svg.innerHTML='';
+    const gids=new Set();
+    elements.forEach(el=>{
+        if(el.gid && !gids.has(el.gid)){
+            gids.add(el.gid);
+            const [p1,p2,p3]=el.pathPts;
+            const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+            path.setAttribute('d',`M${p1.x},${p1.y} Q${p3.x},${p3.y} ${p2.x},${p2.y}`);
+            path.setAttribute('stroke','#1d9e75'); // 緑色
+            path.setAttribute('stroke-dasharray','5,5'); // 点線
+            path.setAttribute('fill','none');
+            path.setAttribute('stroke-width','2');
+            svg.appendChild(path);
+        }
+    });
 }
 
-function drawGuideLine(p1,p2){
-  const l=document.createElementNS('http://www.w3.org/2000/svg','line');
-  l.setAttribute('x1',p1.x); l.setAttribute('y1',p1.y); l.setAttribute('x2',p2.x); l.setAttribute('y2',p2.y);
-  l.setAttribute('stroke','rgba(29,158,117,0.6)'); l.setAttribute('stroke-dasharray','4,4');
-  svg.appendChild(l);
+// ツール操作中のリアルタイムガイド描画
+function drawPreview(pt){
+    const tempSvg = svg.cloneNode(false);
+    svg.replaceWith(tempSvg);
+    const targetSvg = document.getElementById('svg-layer');
+    refreshSVG(); // 既存の緑点線を描画
+
+    if(tool==='arc'){
+        if(arcPts.length===1){
+            // 1点目(始点)からマウス(終点予定)への線
+            const line = createSvgLine(arcPts[0], pt, 'rgba(29,158,117,0.6)', '4,4');
+            targetSvg.appendChild(line);
+        }
+        if(arcPts.length===2){
+            // 1点目(始点)からマウス(頂点)への線 ＋ 2点目(終点)からマウス(頂点)への線
+            const line1 = createSvgLine(arcPts[0], pt, 'rgba(29,158,117,0.8)', '4,4');
+            const line2 = createSvgLine(arcPts[1], pt, 'rgba(29,158,117,0.8)', '4,4');
+            targetSvg.appendChild(line1);
+            targetSvg.appendChild(line2);
+            // 弧のプレビュー
+            const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+            path.setAttribute('d',`M${arcPts[0].x},${arcPts[0].y} Q${pt.x},${pt.y} ${arcPts[1].x},${arcPts[1].y}`);
+            path.setAttribute('stroke','#1d9e75'); path.setAttribute('fill','none');
+            targetSvg.appendChild(path);
+        }
+    }
 }
 
-function drawPreviews(pt){
-  refreshSVG();
-  if(tool==='arc'){
-    if(arcPts.length===1) drawGuideLine(arcPts[0], pt);
-    if(arcPts.length===2) {
-      drawGuideLine(arcPts[0], pt); drawGuideLine(arcPts[1], pt); // 1-3, 2-3の点線
-      const p=document.createElementNS('http://www.w3.org/2000/svg','path');
-      p.setAttribute('d',`M${arcPts[0].x},${arcPts[0].y} Q${pt.x},${pt.y} ${arcPts[1].x},${arcPts[1].y}`);
-      p.setAttribute('stroke','#1d9e75'); p.setAttribute('fill','none'); svg.appendChild(p);
-    }
-  }
-  if(tool==='line' && linePts.length===1) drawGuideLine(linePts[0], pt);
+function createSvgLine(p1, p2, color, dash){
+    const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',p1.x); l.setAttribute('y1',p1.y); l.setAttribute('x2',p2.x); l.setAttribute('y2',p2.y);
+    l.setAttribute('stroke',color); if(dash) l.setAttribute('stroke-dasharray',dash);
+    return l;
 }
 
 function onDown(e){
-  let pt=getXY(e);
-  if(e.target.classList.contains('handle')){
-    const rec=elements.find(el=>el.dom===e.target.parentElement);
-    if(e.target.classList.contains('rot')){ rotatingObj=rec; }
-    else { resizingObj=rec; resizeHandle=e.target.dataset.pos; }
-    return;
-  }
-  const ed=e.target.closest('.elem');
-  if(ed){
-    const rec=elements.find(el=>el.id==ed.dataset.id);
-    if(tool==='select'){
-      if(!selectedList.includes(rec)) selectSingle(rec);
-      draggingObjs = selectedList.map(o => ({obj:o, ox:pt.x-o.x, oy:pt.y-o.y}));
+    const pt=getXY(e);
+    if(e.target.classList.contains('handle')){ resizingObj=elements.find(el=>el.dom===e.target.parentElement); return; }
+    const ed=e.target.closest('.elem');
+    if(ed){
+        const rec=elements.find(el=>el.id==ed.dataset.id);
+        clearSelection(); rec.dom.classList.add('selected'); selectedList=[rec];
+        draggingObjs=[{obj:rec, ox:pt.x-rec.x, oy:pt.y-rec.y}];
+        return;
     }
-    return;
-  }
-  if(tool==='select'){
-    clearSelection(); isSelecting=true; selectStart=pt;
-    const box=document.getElementById('selection-box'); box.style.display='block';
-  } else if(tool==='arc'){
-    arcPts.push(pt); updateGuide();
-    if(arcPts.length===3){
-      const n=prompt("椅子の数",4);
-      if(n){
-        const gid=++gCounter;
-        for(let i=0;i<n;i++){
-          const t=i/(n-1||1); const pos=getPosOnPath('arc',arcPts,t);
-          addElem('chair',pos.x-currentChairSize/2,pos.y-currentChairSize/2,{gid,pathType:'arc',pathPts:[...arcPts],pathT:t});
+    
+    if(tool==='arc'){
+        arcPts.push(pt);
+        if(arcPts.length===3){
+            const n = prompt("椅子の数", 5);
+            if(n){
+                const gid = Date.now();
+                for(let i=0; i<n; i++){
+                    const t = i/(n-1);
+                    const pos = getPosOnArc(arcPts[0], arcPts[1], arcPts[2], t);
+                    addElem('chair', pos.x-15, pos.y-15, {label:currentInst.l, color:currentInst.c, gid, pathPts:[...arcPts], pathT:t});
+                }
+                refreshSVG();
+            }
+            arcPts=[];
         }
-        saveHistory(); refreshSVG();
-      }
-      arcPts=[]; updateGuide();
+    } else if(tool==='chair'){
+        addElem('chair', pt.x-15, pt.y-15, {label:currentInst.l, color:currentInst.c});
+    } else if(tool==='label'){
+        addElem('label', pt.x-20, pt.y-10, {text:'テキスト', color:'#555'});
+    } else {
+        clearSelection();
     }
-  } else if(tool==='line'){
-    linePts.push(pt); updateGuide();
-    if(linePts.length===2){
-      const n=prompt("椅子の数",4);
-      if(n){
-        const gid=++gCounter;
-        for(let i=0;i<n;i++){
-          const t=i/(n-1||1); const pos=getPosOnPath('line',linePts,t);
-          addElem('chair',pos.x-currentChairSize/2,pos.y-currentChairSize/2,{gid,pathType:'line',pathPts:[...linePts],pathT:t});
-        }
-        saveHistory(); refreshSVG();
-      }
-      linePts=[]; updateGuide();
-    }
-  } else if(tool==='chair') addElem('chair',pt.x-currentChairSize/2,pt.y-currentChairSize/2);
 }
 
 function onMove(e){
-  let pt=getXY(e);
-  if(isSelecting){
-    const x=Math.min(pt.x, selectStart.x), y=Math.min(pt.y, selectStart.y);
-    const w=Math.abs(pt.x-selectStart.x), h=Math.abs(pt.y-selectStart.y);
-    const box=document.getElementById('selection-box'); box.style.left=x+'px'; box.style.top=y+'px'; box.style.width=w+'px'; box.style.height=h+'px';
-    elements.forEach(el=>{ if(el.x>x && el.x+el.w<x+w && el.y>y && el.y+el.h<y+h) { if(!selectedList.includes(el)) { el.dom.classList.add('selected'); selectedList.push(el); }} });
-  }
-  if(draggingObjs.length){
-    draggingObjs.forEach(d=>{
-      if(d.obj.pathType && draggingObjs.length===1){
-        let bestT=0, minDist=999999;
-        for(let i=0;i<=100;i++){
-          const testT=i/100; const p=getPosOnPath(d.obj.pathType, d.obj.pathPts, testT);
-          const dist=(p.x-pt.x)**2+(p.y-pt.y)**2; if(dist<minDist){ minDist=dist; bestT=testT; }
-        }
-        d.obj.pathT=bestT; const pos=getPosOnPath(d.obj.pathType, d.obj.pathPts, bestT);
-        d.obj.x=pos.x-d.obj.w/2; d.obj.y=pos.y-d.obj.h/2;
-      } else { d.obj.x=pt.x-d.ox; d.obj.y=pt.y-d.oy; }
-      d.obj.dom.style.left=d.obj.x+'px'; d.obj.dom.style.top=d.obj.y+'px';
-    });
-  }
-  if(resizingObj){
-    const r=resizingObj; if(resizeHandle==='se'){ r.w=Math.max(15,pt.x-r.x); r.h=Math.max(15,pt.y-r.y); }
-    r.dom.style.width=r.w+'px'; r.dom.style.height=r.h+'px';
-  }
-  drawPreviews(pt);
+    const pt=getXY(e);
+    if(draggingObjs.length){
+        draggingObjs.forEach(d=>{
+            d.obj.x=pt.x-d.ox; d.obj.y=pt.y-d.oy;
+            d.obj.dom.style.left=d.obj.x+'px'; d.obj.dom.style.top=d.obj.y+'px';
+        });
+    }
+    if(resizingObj){
+        resizingObj.w=Math.max(20, pt.x-resizingObj.x); resizingObj.h=Math.max(20, pt.y-resizingObj.y);
+        resizingObj.dom.style.width=resizingObj.w+'px'; resizingObj.dom.style.height=resizingObj.h+'px';
+    }
+    drawPreview(pt);
 }
 
-function onUp(){ if(draggingObjs.length||resizingObj||isSelecting) saveHistory(); draggingObjs=[]; resizingObj=null; isSelecting=false; document.getElementById('selection-box').style.display='none'; }
+function onUp(){ draggingObjs=[]; resizingObj=null; }
 
-function deleteSelected(){ selectedList.forEach(t=>{ t.dom.remove(); elements=elements.filter(e=>e.id!==t.id); }); clearSelection(); saveHistory(); refreshSVG(); }
-function selectSingle(r){ clearSelection(); selectedList=[r]; r.dom.classList.add('selected'); }
-function clearSelection(){ selectedList.forEach(r=>r.dom.classList.remove('selected')); selectedList=[]; }
-
-function setupEvents(){ 
-  stage.addEventListener('pointerdown',onDown); window.addEventListener('pointermove',onMove); window.addEventListener('pointerup',onUp);
-  window.addEventListener('keydown', e=>{ if(e.key==='Delete'||e.key==='Backspace') { if(document.activeElement.tagName!=='INPUT') deleteSelected(); }});
+function getPosOnArc(p1,p2,p3,t){
+    const x = Math.pow(1-t,2)*p1.x + 2*(1-t)*t*p3.x + Math.pow(t,2)*p2.x;
+    const y = Math.pow(1-t,2)*p1.y + 2*(1-t)*t*p3.y + Math.pow(t,2)*p2.y;
+    return {x,y};
 }
 
 function getXY(e){ const r=stage.getBoundingClientRect(); return {x:(e.clientX-r.left)/zoomLevel, y:(e.clientY-r.top)/zoomLevel}; }
-function updateHint(){ const h=document.getElementById('hint-box'); h.innerHTML=`💡 ヒント: ${tool==='arc'?'3点クリックで弧を配置。':'選択してドラッグ。'}`; }
-function updateGuide(){
-  const g=document.getElementById('guide-panel'); if(!['arc','line'].includes(tool)){ g.style.display='none'; return; }
-  g.style.display='block'; const steps=tool==='arc'?['始点','終点','頂点']:['始点','終点'];
-  const cur=(tool==='arc'?arcPts:linePts).length;
-  document.getElementById('guide-steps').innerHTML=steps.map((s,i)=>`<div class="step ${i===cur?'active':''}">${i+1}. ${s}</div>`).join('');
-}
-
-function exportPNG(){ refreshSVG(); html2canvas(stage).then(c=>{ const a=document.createElement('a'); a.download='stage.png'; a.href=c.toDataURL(); a.click(); }); }
-function exportTemplate(){ const d=JSON.stringify(elements); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([d])); a.download='stage.json'; a.click(); }
-function importTemplate(){ const i=document.createElement('input'); i.type='file'; i.onchange=async e=>{ const d=JSON.parse(await e.target.files[0].text()); applyState(); }; i.click(); }
+function clearSelection(){ selectedList.forEach(el=>el.dom.classList.remove('selected')); selectedList=[]; }
+function deleteSelected(){ selectedList.forEach(el=>{ el.dom.remove(); elements=elements.filter(e=>e.id!==el.id); }); clearSelection(); refreshSVG(); }
+function setupEvents(){ stage.addEventListener('pointerdown',onDown); window.addEventListener('pointermove',onMove); window.addEventListener('pointerup',onUp); }
 
 window.onload=init;
 </script>
