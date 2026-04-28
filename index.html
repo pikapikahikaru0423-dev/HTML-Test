@@ -3,41 +3,65 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Stage Layout Maker v20.3</title>
+<title>Stage Layout Maker v20.4 (Full Restore)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
     :root { --primary: #1d9e75; --accent: #e11d48; --bg: #d8d6cf; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; background: var(--bg); overflow: hidden; touch-action: none; }
 
-    /* UI Components */
-    #toolbar { background: white; border-bottom: 1px solid #ccc; padding: 5px 10px; display: flex; gap: 8px; align-items: center; z-index: 100; flex-shrink: 0; }
-    .tb-group { display: flex; align-items: center; gap: 4px; font-size: 11px; }
-    button { cursor: pointer; padding: 6px 10px; border: 1px solid #ccc; border-radius: 5px; background: white; font-size: 11px; }
+    /* --- UI: Toolbar --- */
+    #toolbar { background: white; border-bottom: 1px solid #ccc; padding: 5px 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; z-index: 100; flex-shrink: 0; }
+    .tb-group { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+    .sep { width: 1px; height: 24px; background: #ddd; margin: 0 4px; }
+    button { cursor: pointer; padding: 7px 12px; border: 1px solid #ccc; border-radius: 6px; background: white; font-size: 12px; white-space: nowrap; transition: 0.2s; }
+    button:hover { background: #f9f9f9; }
     button.active { background: #e1f5ee; border-color: var(--primary); color: #0f6e56; font-weight: bold; }
+    .val-input { width: 50px; height: 24px; border: 1px solid var(--primary); border-radius: 4px; text-align: center; font-size: 12px; }
 
+    /* --- UI: Main Layout --- */
     #main { display: flex; flex: 1; overflow: hidden; }
-    #sidebar { width: 160px; background: white; border-right: 1px solid #ccc; display: flex; flex-direction: column; }
-    .inst-list { flex: 1; overflow-y: auto; }
-    .inst { padding: 8px 10px; font-size: 12px; border-bottom: 1px solid #f0f0f0; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    
+    /* Sidebar */
+    #sidebar { width: 180px; background: white; border-right: 1px solid #ccc; display: flex; flex-direction: column; flex-shrink: 0; }
+    .tabs { display: flex; background: #f0f0f0; border-bottom: 1px solid #ccc; }
+    .tab { flex: 1; padding: 12px 5px; text-align: center; font-size: 11px; cursor: pointer; color: #666; transition: 0.2s; }
+    .tab.active { background: white; color: var(--primary); font-weight: bold; border-bottom: 2px solid var(--primary); }
+    .inst-list { flex: 1; overflow-y: auto; padding-bottom: 20px; }
+    .inst { padding: 10px 15px; font-size: 13px; border-bottom: 1px solid #f5f5f5; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.1s; }
+    .inst:active { background: #f0f0f0; }
 
-    #canvas-wrap { flex: 1; overflow: auto; position: relative; padding: 40px; background: #eee; }
+    /* Canvas Area */
+    #canvas-wrap { flex: 1; overflow: auto; position: relative; padding: 60px; background: #eee; }
     #zoom-container { transform-origin: top left; }
-    #stage { position: relative; background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.2); user-select: none; }
+    #stage { position: relative; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.15); user-select: none; }
+    .grid { position: absolute; inset: 0; pointer-events: none; z-index: 1; background-image: linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px); background-size: 30px 30px; }
+    #pdf-layer { position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0.6; }
     svg { position: absolute; inset: 0; pointer-events: none; z-index: 5; overflow: visible; }
     
     /* Elements */
-    .elem { position: absolute; cursor: move; display: flex; align-items: center; justify-content: center; z-index: 10; font-weight: bold; touch-action: none; pointer-events: auto; }
+    .elem { position: absolute; cursor: move; display: flex; align-items: center; justify-content: center; z-index: 10; font-weight: bold; touch-action: none; text-align: center; line-height: 1.1; }
     .elem.selected { outline: 2px solid var(--primary); outline-offset: 4px; z-index: 100 !important; }
     .chair { border-radius: 50%; background: white; border: 2px solid; }
+    .rect { border: 2px solid; background: rgba(200,200,200,0.1); border-radius: 4px; }
+    .label { border: 1px solid transparent; background: transparent; padding: 2px 4px; font-weight: normal; }
 
-    /* Group Handle (SVG Path Interactivity) */
-    .group-path { pointer-events: auto; cursor: move; }
-    .group-path:hover { stroke: var(--primary); stroke-width: 3px; }
+    /* SVG Interactive Path */
+    .group-path { pointer-events: auto; cursor: move; stroke-linecap: round; }
+    .group-path:hover { stroke: var(--primary); stroke-opacity: 0.6; }
 
-    #guide-panel { position: fixed; top: 60px; left: 180px; background: white; border: 1px solid #ccc; border-radius: 8px; padding: 10px; z-index: 1000; font-size: 12px; display: none; }
-    .step { opacity: 0.3; margin: 2px 0; }
+    /* UI: Floating Panels */
+    #guide-panel { position: fixed; top: 75px; left: 200px; background: rgba(255,255,255,0.95); border: 1px solid #ccc; border-radius: 8px; padding: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); z-index: 1000; font-size: 12px; display: none; backdrop-filter: blur(4px); }
+    .step { display: flex; align-items: center; gap: 8px; margin: 4px 0; opacity: 0.3; }
     .step.active { opacity: 1; color: var(--primary); font-weight: bold; }
+
+    /* UI: Property Bar */
+    #prop-bar { height: 60px; background: white; border-top: 1px solid #ccc; display: flex; align-items: center; padding: 0 20px; gap: 15px; font-size: 12px; flex-shrink: 0; z-index: 110; }
+    .prop-item { display: flex; align-items: center; gap: 6px; }
+
+    /* Hidden inputs */
+    #file-json, #file-pdf { display: none; }
 </style>
 </head>
 <body>
@@ -45,22 +69,42 @@
 <div id="toolbar">
     <div class="tb-group">
         <button id="btn-select" class="active" onclick="setTool('select')">▷ 選択</button>
+        <button id="btn-chair" onclick="setTool('chair')">○ 椅子</button>
         <button id="btn-arc" onclick="setTool('arc')">⌒ 弧配置</button>
+        <button id="btn-label" onclick="setTool('label')">Ａ ラベル</button>
+        <button id="btn-rect" onclick="setTool('rect')">□ 四角</button>
     </div>
+    <div class="sep"></div>
     <div class="tb-group">
-        ズーム:<input type="range" id="zoom-range" min="0.5" max="1.5" step="0.1" value="1.0" oninput="syncZoom(this.value)">
+        ズーム:<input type="range" id="zoom-range" min="0.3" max="1.5" step="0.05" value="1.0" oninput="syncZoom(this.value)">
     </div>
-    <button onclick="undo()">↩</button>
-    <button onclick="deleteSelected()" style="color:var(--accent)">削除</button>
+    <div class="sep"></div>
+    <div class="tb-group">
+        <button onclick="undo()">↩ 戻る</button>
+        <button onclick="deleteSelected()" style="color:var(--accent); font-weight:bold;">削除</button>
+    </div>
+    <div class="sep"></div>
+    <div class="tb-group">
+        <button onclick="document.getElementById('file-pdf').click()">📂 PDF読込</button>
+        <button onclick="exportJSON()">💾 保存</button>
+        <button onclick="exportPNG()" style="background:var(--primary); color:white; border:none;">📷 画像出力</button>
+    </div>
 </div>
 
 <div id="main">
     <div id="sidebar">
+        <div class="tabs">
+            <div id="tab-main" class="tab active" onclick="switchTab('main')">木・金</div>
+            <div id="tab-perc" class="tab" onclick="switchTab('perc')">Perc.</div>
+        </div>
         <div id="list-main" class="inst-list"></div>
+        <div id="list-perc" class="inst-list" style="display:none"></div>
     </div>
     <div id="canvas-wrap">
         <div id="zoom-container">
             <div id="stage" style="width:1000px; height:750px;">
+                <div class="grid"></div>
+                <canvas id="pdf-layer"></canvas>
                 <svg id="svg-layer"></svg>
             </div>
         </div>
@@ -68,41 +112,117 @@
 </div>
 
 <div id="guide-panel">
-    <div style="font-weight:bold">⌒ 弧配置手順</div>
+    <div id="guide-title" style="font-weight:bold; margin-bottom:6px; color:#333;"></div>
     <div id="guide-steps"></div>
 </div>
 
+<div id="prop-bar">
+    <div id="prop-editor" style="display:none; align-items:center; gap:20px; width:100%;">
+        <div class="prop-item">色: <input type="color" id="p-color" onchange="updateSelected('color', this.value)"></div>
+        <div class="prop-item">文字: <input type="text" id="p-text" style="width:100px; padding:3px;" oninput="updateSelected('label', this.value)"></div>
+        <div class="prop-item">サイズ: <input type="number" id="p-size" class="val-input" oninput="updateSelected('w', this.value); updateSelected('h', this.value);"></div>
+        <button onclick="deleteSelected()" style="background:var(--accent); color:white; border:none; margin-left:auto;">削除</button>
+    </div>
+    <div id="prop-empty" style="color:#999;">要素を選択するとプロパティを表示します</div>
+</div>
+
+<input type="file" id="file-pdf" accept="application/pdf">
+<input type="file" id="file-json" accept=".json">
+
 <script>
-const INSTS = [{l:"Fl",c:"#e35"},{l:"Cl",c:"#36a"},{l:"Sax",c:"#1a8"},{l:"Tp",c:"#c70"}];
+// --- Data ---
+const MAIN_INST = [
+    {l:"Fl", c:"#e35"}, {l:"Ob", c:"#e35"}, {l:"Cl", c:"#36a"}, {l:"B.Cl", c:"#36a"},
+    {l:"Fg", c:"#e35"}, {l:"A.Sax", c:"#1a8"}, {l:"T.Sax", c:"#1a8"}, {l:"B.Sax", c:"#1a8"},
+    {l:"Tp", c:"#c70"}, {l:"Hr", c:"#84a"}, {l:"Tb", c:"#a84"}, {l:"Euph", c:"#08a"}, {l:"Tu", c:"#08a"}, {l:"St.B", c:"#08a"}
+];
+const PERC_INST = ["Timpani", "S.D.", "B.D.", "Cymbals", "Glocken", "Xylo", "Vibe", "Chime", "Toms", "Tamb."];
+
 let elements = [], selectedIds = [], tool = 'select';
-let zoom = 1.0, pts = [], history = [], historyIdx = -1;
-let currentInst = INSTS[0], lastMouse = {x:0, y:0};
-let dragData = null; // {type: 'elem'|'group', target: obj, ox, oy}
+let zoom = 1.0, chairSize = 26, history = [], historyIdx = -1;
+let currentInst = MAIN_INST[0], lastMouse = {x:0, y:0}, pts = [];
+let dragData = null;
 
 const stage = document.getElementById('stage');
 const svg = document.getElementById('svg-layer');
 
+// --- Initialization ---
 function init() {
-    const list = document.getElementById('list-main');
-    INSTS.forEach(inst => {
-        const div = document.createElement('div');
-        div.className = 'inst';
-        div.innerHTML = `<span style="width:10px;height:10px;background:${inst.c};border-radius:50%"></span>${inst.l}`;
-        div.onclick = () => { currentInst = inst; setTool('arc'); };
-        list.appendChild(div);
-    });
+    renderList(MAIN_INST, 'list-main');
+    renderPercList();
     setupEvents();
+    setupFileHandlers();
     saveHistory();
 }
 
-function setTool(t) { tool = t; pts = []; updateGuide(); render(); }
-function syncZoom(v) { zoom = v; document.getElementById('zoom-container').style.transform = `scale(${zoom})`; }
+function renderList(list, id) {
+    const container = document.getElementById(id);
+    list.forEach(inst => {
+        const div = document.createElement('div');
+        div.className = 'inst';
+        div.innerHTML = `<span style="width:12px;height:12px;background:${inst.c};border-radius:50%;border:1px solid rgba(0,0,0,0.1)"></span>${inst.l}`;
+        div.onclick = () => { currentInst = inst; setTool('chair'); };
+        container.appendChild(div);
+    });
+}
 
+function renderPercList() {
+    const container = document.getElementById('list-perc');
+    PERC_INST.forEach(l => {
+        const div = document.createElement('div');
+        div.className = 'inst';
+        div.innerHTML = `<span style="width:12px;height:12px;background:#555;border-radius:50%"></span>${l}`;
+        div.onclick = () => { currentInst = {l:l, c:"#555"}; setTool('chair'); };
+        container.appendChild(div);
+    });
+}
+
+function switchTab(t) {
+    document.getElementById('list-main').style.display = t === 'main' ? 'block' : 'none';
+    document.getElementById('list-perc').style.display = t === 'perc' ? 'block' : 'none';
+    document.getElementById('tab-main').classList.toggle('active', t === 'main');
+    document.getElementById('tab-perc').classList.toggle('active', t === 'perc');
+}
+
+// --- Tool Logic ---
+function setTool(t) {
+    tool = t; pts = [];
+    document.querySelectorAll('button[id^=btn-]').forEach(b => b.classList.toggle('active', b.id === 'btn-'+t));
+    updateGuide();
+    render();
+}
+
+function syncZoom(val) {
+    zoom = parseFloat(val);
+    document.getElementById('zoom-container').style.transform = `scale(${zoom})`;
+}
+
+// --- Math: Path Calculation ---
 function getPointOnArc(p, t) {
+    // 2次ベジェ曲線: p[0]=始点, p[1]=終点, p[2]=制御点(膨らみ)
     return {
         x: Math.pow(1-t, 2)*p[0].x + 2*(1-t)*t*p[2].x + Math.pow(t, 2)*p[1].x,
         y: Math.pow(1-t, 2)*p[0].y + 2*(1-t)*t*p[2].y + Math.pow(t, 2)*p[1].y
     };
+}
+
+// --- Elements Management ---
+function addElem(opts) {
+    const el = {
+        id: Date.now() + Math.random(), 
+        type: opts.type, 
+        x: opts.x, y: opts.y, 
+        w: opts.w || (opts.type === 'chair' ? 26 : 80), 
+        h: opts.h || (opts.type === 'chair' ? 26 : 40),
+        color: opts.color || currentInst.c, 
+        label: opts.label || currentInst.l,
+        gid: opts.gid || null, 
+        pts: opts.pts || null, 
+        t: opts.t || 0
+    };
+    elements.push(el);
+    render();
+    return el;
 }
 
 function createGroup(p, n) {
@@ -110,51 +230,58 @@ function createGroup(p, n) {
     for(let i=0; i<n; i++) {
         const t = n > 1 ? i/(n-1) : 0.5;
         const pos = getPointOnArc(p, t);
-        elements.push({ id: Math.random(), type:'chair', x: pos.x-13, y: pos.y-13, w:26, h:26, color: currentInst.c, label: currentInst.l, gid, pts: JSON.parse(JSON.stringify(p)), t });
+        addElem({ type: 'chair', x: pos.x-13, y: pos.y-13, gid, pts: JSON.parse(JSON.stringify(p)), t });
     }
-    render(); saveHistory();
+    saveHistory();
 }
 
+// --- Rendering ---
 function render() {
     stage.querySelectorAll('.elem').forEach(n => n.remove());
     elements.forEach(el => {
         const div = document.createElement('div');
-        div.className = `elem chair ${selectedIds.includes(el.id) ? 'selected' : ''}`;
-        div.style.cssText = `left:${el.x}px; top:${el.y}px; width:${el.w}px; height:${el.h}px; border-color:${el.color}; color:${el.color}; font-size:9px;`;
-        div.innerHTML = el.label;
+        div.className = `elem ${el.type} ${selectedIds.includes(el.id) ? 'selected' : ''}`;
+        div.style.cssText = `left:${el.x}px; top:${el.y}px; width:${el.w}px; height:${el.h}px; border-color:${el.color}; color:${el.color};`;
         div.dataset.id = el.id;
+        div.innerHTML = `<div>${el.label}</div>`;
         stage.appendChild(div);
     });
     renderSVG();
+    updateProps();
 }
 
 function renderSVG() {
     svg.innerHTML = '';
     const groups = {};
-    elements.forEach(el => { if(el.gid) { if(!groups[el.gid]) groups[el.gid] = el.pts; } });
+    elements.forEach(el => { if(el.gid && el.pts) { if(!groups[el.gid]) groups[el.gid] = el.pts; } });
 
+    // 完成した弧の点線（インタラクティブ）
     Object.keys(groups).forEach(gid => {
         const p = groups[gid];
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         path.setAttribute('d', `M ${p[0].x} ${p[0].y} Q ${p[2].x} ${p[2].y} ${p[1].x} ${p[1].y}`);
         path.setAttribute('stroke', 'rgba(29,158,117,0.3)');
         path.setAttribute('fill', 'none');
-        path.setAttribute('stroke-dasharray', '4,4');
-        path.setAttribute('stroke-width', '10'); // 掴みやすくするために太めの透明領域
+        path.setAttribute('stroke-dasharray', '5,5');
+        path.setAttribute('stroke-width', '12'); // 掴みやすく
         path.classList.add('group-path');
         
-        // グループ移動用イベント
-        path.addEventListener('pointerdown', e => {
+        path.onpointerdown = (e) => {
             if(tool !== 'select') return;
             e.stopPropagation();
             const r = stage.getBoundingClientRect();
-            const x = (e.clientX - r.left)/zoom, y = (e.clientY - r.top)/zoom;
-            dragData = { type: 'group', gid: parseFloat(gid), ox: x, oy: y, originalPts: JSON.parse(JSON.stringify(p)) };
-        });
+            dragData = { 
+                type: 'group', 
+                gid: parseFloat(gid), 
+                ox: (e.clientX - r.left)/zoom, 
+                oy: (e.clientY - r.top)/zoom, 
+                originalPts: JSON.parse(JSON.stringify(p)) 
+            };
+        };
         svg.appendChild(path);
     });
 
-    // 弧作成中のガイド
+    // 弧作成中のガイド描画
     if(tool === 'arc' && pts.length > 0) {
         const guide = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         let d = `M ${pts[0].x} ${pts[0].y}`;
@@ -163,6 +290,7 @@ function renderSVG() {
         guide.setAttribute('d', d);
         guide.setAttribute('stroke', 'var(--primary)');
         guide.setAttribute('fill', 'none');
+        guide.setAttribute('stroke-width', '2');
         svg.appendChild(guide);
     }
 }
@@ -171,10 +299,32 @@ function updateGuide() {
     const g = document.getElementById('guide-panel');
     if(tool !== 'arc') { g.style.display = 'none'; return; }
     g.style.display = 'block';
-    const steps = ['左端', '右端', '膨らみ'];
+    const steps = ['左端をクリック', '右端をクリック', '中央(膨らみ)をクリック'];
+    document.getElementById('guide-title').textContent = '⌒ 弧配置の手順';
     document.getElementById('guide-steps').innerHTML = steps.map((s,i) => `<div class="step ${i===pts.length?'active':''}">${i+1}. ${s}</div>`).join('');
 }
 
+function updateProps() {
+    const isSel = selectedIds.length > 0;
+    document.getElementById('prop-editor').style.display = isSel ? 'flex' : 'none';
+    document.getElementById('prop-empty').style.display = isSel ? 'none' : 'block';
+    if(isSel) {
+        const el = elements.find(e => e.id === selectedIds[0]);
+        document.getElementById('p-color').value = el.color;
+        document.getElementById('p-text').value = el.label;
+        document.getElementById('p-size').value = el.w;
+    }
+}
+
+function updateSelected(key, val) {
+    elements.filter(el => selectedIds.includes(el.id)).forEach(el => {
+        if(key === 'w' || key === 'h') el[key] = parseInt(val);
+        else el[key] = val;
+    });
+    render();
+}
+
+// --- Events ---
 function setupEvents() {
     stage.addEventListener('pointerdown', e => {
         const r = stage.getBoundingClientRect();
@@ -189,11 +339,14 @@ function setupEvents() {
                 dragData = { type: 'elem', el, ox: x - el.x, oy: y - el.y };
             } else { selectedIds = []; }
             render();
+        } else if(tool === 'chair' || tool === 'label' || tool === 'rect') {
+            addElem({type: tool, x: x-15, y: y-15, label: tool === 'chair' ? currentInst.l : (tool === 'label' ? 'Label' : '')});
+            saveHistory();
         } else if(tool === 'arc') {
             pts.push({x, y});
             if(pts.length === 3) {
-                const n = prompt("椅子の数", "5");
-                if(n) createGroup([...pts], parseInt(n));
+                const n = prompt("配置する椅子の数", "5");
+                if(n && !isNaN(n)) createGroup([...pts], parseInt(n));
                 pts = [];
             }
             updateGuide(); render();
@@ -208,28 +361,49 @@ function setupEvents() {
             if(dragData.type === 'elem') {
                 dragData.el.x = lastMouse.x - dragData.ox;
                 dragData.el.y = lastMouse.y - dragData.oy;
-                if(dragData.el.gid) delete dragData.el.gid; // 個別に動かしたらグループ解除
+                if(dragData.el.gid) delete dragData.el.gid; // 個別移動でグループ解除
             } else if(dragData.type === 'group') {
                 const dx = lastMouse.x - dragData.ox;
                 const dy = lastMouse.y - dragData.oy;
-                // 1. 軌道(pts)を更新
                 const newPts = dragData.originalPts.map(p => ({ x: p.x + dx, y: p.y + dy }));
-                // 2. 所属するすべての椅子の座標を再計算
                 elements.forEach(el => {
                     if(el.gid === dragData.gid) {
                         el.pts = newPts;
                         const newPos = getPointOnArc(newPts, el.t);
-                        el.x = newPos.x - 13; el.y = newPos.y - 13;
+                        el.x = newPos.x - el.w/2; el.y = newPos.y - el.h/2;
                     }
                 });
             }
             render();
-        } else if(tool === 'arc') { renderSVG(); }
+        } else if(tool === 'arc' && pts.length > 0) {
+            renderSVG();
+        }
     });
 
     window.addEventListener('pointerup', () => { if(dragData) saveHistory(); dragData = null; });
 }
 
+// --- PDF & Files ---
+function setupFileHandlers() {
+    document.getElementById('file-pdf').onchange = async (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = async function() {
+            const pdfData = new Uint8Array(this.result);
+            const pdf = await pdfjsLib.getDocument({data: pdfData}).promise;
+            const page = await pdf.getPage(1);
+            const canvas = document.getElementById('pdf-layer');
+            const viewport = page.getViewport({scale: 2.0});
+            canvas.width = viewport.width; canvas.height = viewport.height;
+            stage.style.width = viewport.width + 'px'; stage.style.height = viewport.height + 'px';
+            await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
+        };
+        reader.readAsArrayBuffer(file);
+    };
+}
+
+// --- Utils ---
 function deleteSelected() {
     elements = elements.filter(el => !selectedIds.includes(el.id));
     selectedIds = []; render(); saveHistory();
@@ -237,9 +411,23 @@ function deleteSelected() {
 function saveHistory() {
     history = history.slice(0, historyIdx + 1);
     history.push(JSON.stringify(elements));
-    historyIdx++;
+    if(history.length > 50) history.shift(); else historyIdx++;
 }
 function undo() { if(historyIdx > 0) { historyIdx--; elements = JSON.parse(history[historyIdx]); render(); } }
+
+function exportJSON() {
+    const data = { elements, stageW: stage.offsetWidth, stageH: stage.offsetHeight };
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], {type:'application/json'}));
+    a.download = `layout_${Date.now()}.json`; a.click();
+}
+
+function exportPNG() {
+    html2canvas(stage).then(canvas => {
+        const a = document.createElement('a'); a.href = canvas.toDataURL("image/png");
+        a.download = `stage_layout.png`; a.click();
+    });
+}
 
 window.onload = init;
 </script>
