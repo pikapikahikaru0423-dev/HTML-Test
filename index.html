@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>舞台配置図 Pro v17.9.4</title>
+<title>舞台配置図 Pro v17.9.5</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
@@ -53,7 +53,7 @@ input[type=number]{width:45px;padding:2px 4px;font-size:11px;border:1px solid #c
 /* Elements */
 .elem{position:absolute;cursor:move;user-select:none;touch-action:none;z-index:10;pointer-events:auto;}
 .chair{border-radius:50%;border:2px solid;background:white;display:flex;align-items:center;justify-content:center;font-weight:600;width:100%;height:100%;}
-.chair-text{position:absolute;white-space:nowrap;pointer-events:none;text-align:center;line-height:1;display: flex; align-items: center; justify-content: center; width: 85%; height: 85%; overflow: hidden;}
+.chair-text{position:absolute;white-space:nowrap;pointer-events:none;text-align:center;line-height:1;display: flex; align-items: center; justify-content: center; width: 70%; height: 70%; overflow: hidden;}
 .elem.selected{outline:2px solid #1d9e75;outline-offset:4px;}
 .label-elem{background:white;border:1px solid #aaa;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:10px;padding:2px;text-align:center;}
 .rect-elem{border:2px solid #555;background:rgba(200,200,200,0.1);display:flex;align-items:center;justify-content:center;}
@@ -233,14 +233,16 @@ function updateSizeSetting(v){
   document.getElementById('size-range').value = val; document.getElementById('size-input').value = val;
 }
 
-// フォントサイズの動的計算 (v17.9.4: 余白を考慮して0.9倍に調整)
-function getAutoFontSize(text, radius) {
+// フォントサイズの動的計算 (v17.9.5: 直径の約70%を基準にマージンを確保)
+function getAutoFontSize(text, diameter) {
     const len = text.length;
-    let baseSize;
-    if (len <= 2) baseSize = radius * 0.40; // 以前の0.45より少し小さく
-    else if (len <= 4) baseSize = radius * 0.32; // 以前の0.35より少し小さく
-    else baseSize = radius * (1.1 / len); // 以前の1.2より小さく
-    return baseSize;
+    let baseScale;
+    if (len <= 2) baseScale = 0.35; // 0.7の半分程度から
+    else if (len <= 4) baseScale = 0.28;
+    else baseScale = 1.0 / (len + 0.5);
+    
+    // 直径の70%が上限になるよう係数を調整
+    return diameter * baseScale;
 }
 
 function addElem(type,x,y,opts={}){
