@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>舞台配置図 Pro v17.9.2</title>
+<title>舞台配置図 Pro v17.9.3</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
@@ -53,7 +53,7 @@ input[type=number]{width:45px;padding:2px 4px;font-size:11px;border:1px solid #c
 /* Elements */
 .elem{position:absolute;cursor:move;user-select:none;touch-action:none;z-index:10;pointer-events:auto;}
 .chair{border-radius:50%;border:2px solid;background:white;display:flex;align-items:center;justify-content:center;font-weight:600;width:100%;height:100%;}
-.chair-text{position:absolute;white-space:nowrap;pointer-events:none;text-align:center;line-height:1;width: 100%; overflow: visible;}
+.chair-text{position:absolute;white-space:nowrap;pointer-events:none;text-align:center;line-height:1;display: flex; align-items: center; justify-content: center; width: 90%; height: 90%; overflow: hidden;}
 .elem.selected{outline:2px solid #1d9e75;outline-offset:4px;}
 .label-elem{background:white;border:1px solid #aaa;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:10px;padding:2px;text-align:center;}
 .rect-elem{border:2px solid #555;background:rgba(200,200,200,0.1);display:flex;align-items:center;justify-content:center;}
@@ -136,7 +136,7 @@ input[type=number]{width:45px;padding:2px 4px;font-size:11px;border:1px solid #c
 </div>
 
 <script>
-// --- Data Definitions ---
+// --- Data & State ---
 const MAIN_INST=[
   {l:"Pic",c:"#e35"},{l:"Fl",c:"#e35"},{l:"Ob",c:"#c44"},
   {l:"B♭Cl",c:"#36a"},{l:"B.Cl",c:"#36a"},
@@ -145,47 +145,38 @@ const MAIN_INST=[
   {l:"Hr",c:"#84a"},{l:"Tu",c:"#08a"},
   {l:"Eu",c:"#08a"},{l:"Stb",c:"#555"}
 ];
-
 const PERC_COLOR = "#2a4a8a"; 
 const PERC_LABELS=["BD","Chime","Harp","Piano","Vib.","Xlo.","Marb.","Glo.","W.C.","T.-tam","Timb.","Bongos","Congas","StPa","Base","Synth."];
 const PERC_CHAIRS=["Timp.","S.D.","4Tom","S.Cym","C.Cym","Drm","Bongos","Congas"];
 const PERC_MARCHING=["M.S.D.","M.BD1","M.BD2","M.BD3","M.BD4","TD"];
-
-const OTHER_INST=[
-  {l:"Cor Angl.",c:"#c44"},{l:"E♭Cl",c:"#36a"},{l:"A.Cl",c:"#36a"},{l:"S.Sax",c:"#1a8"}
-];
+const OTHER_INST=[{l:"Cor Angl.",c:"#c44"},{l:"E♭Cl",c:"#36a"},{l:"A.Cl",c:"#36a"},{l:"S.Sax",c:"#1a8"}];
 
 let elements=[], selectedList=[], tool='select';
 let zoomLevel=1.0, currentChairSize=26, idCounter=0;
 let currentInst=MAIN_INST[0], isShift=false;
 let draggingObjs=[], resizingObj=null, resizeHandle='', rotatingObj=null, startAng=0, startMouseAng=0;
 let arcPts=[], linePts=[], dimPts=[], history=[], historyIndex=-1;
-
-// Multi-select state
 let isSelecting=false, selectStart={x:0,y:0};
-const selRectDom=document.getElementById('selection-rect');
 
 const stage=document.getElementById('stage');
 const svg=document.getElementById('svg-layer');
+const selRectDom=document.getElementById('selection-rect');
 
 function init(){
-  renderList(MAIN_INST,'list-main'); 
-  renderList(OTHER_INST,'list-other');
-  renderPercList();
+  renderList(MAIN_INST,'list-main'); renderList(OTHER_INST,'list-other'); renderPercList();
   setupEvents(); saveHistory(); updateHint();
 }
 
+// --- UI Rendering ---
 function renderList(list,id){
   const container=document.getElementById(id);
   list.forEach(inst=>{
-    const div=document.createElement('div');
-    div.className='inst';
+    const div=document.createElement('div'); div.className='inst';
     div.innerHTML=`<span style="width:10px;height:10px;background:${inst.c};border-radius:50%"></span>${inst.l}`;
     div.onclick=()=>{ currentInst=inst; updateInstSelection(div); if(tool==='select') setTool('chair'); };
     container.appendChild(div);
   });
 }
-
 function renderPercList(){
   const container=document.getElementById('list-perc');
   const addSec=(title,list,type)=>{
@@ -196,12 +187,8 @@ function renderPercList(){
       div.innerHTML=`<span style="width:10px;height:10px;background:${PERC_COLOR};border-radius:${isCircle?'50%':'2px'}"></span>${l}`;
       div.onclick=()=>{
         updateInstSelection(div);
-        if(isCircle){
-           currentInst={l:l, c:PERC_COLOR}; setTool('chair');
-        } else {
-           addElem('label',400,300,{text:l, color:PERC_COLOR, w:45, h:25});
-           setTool('select');
-        }
+        if(isCircle){ currentInst={l:l, c:PERC_COLOR}; setTool('chair'); }
+        else { addElem('label',400,300,{text:l, color:PERC_COLOR, w:45, h:25}); setTool('select'); }
       };
       container.appendChild(div);
     });
@@ -210,9 +197,7 @@ function renderPercList(){
   addSec("円形（打楽器）", PERC_CHAIRS, "chair");
   addSec("マーチング（円形）", PERC_MARCHING, "marching");
 }
-
 function updateInstSelection(el){ document.querySelectorAll('.inst').forEach(e=>e.style.background=''); el.style.background='#e1f5ee'; }
-
 function switchTab(t){
   ['main','other','perc'].forEach(k=>{
     document.getElementById(`list-${k}`).style.display=t===k?'block':'none';
@@ -220,40 +205,66 @@ function switchTab(t){
   });
 }
 
+// --- Logic & Events ---
 function setTool(t){
   tool=t; arcPts=[]; linePts=[]; dimPts=[]; clearSVG();
   document.querySelectorAll('button[id^=btn-]').forEach(b=>b.classList.remove('active'));
   document.getElementById('btn-'+t)?.classList.add('active');
   updateHint();
 }
-
 function updateHint(){
   const h=document.getElementById('hint-box');
   let text = {
     select:"ドラッグで範囲選択。要素を掴んで移動。Delキーで削除。",
     chair:`配置サイズ: ${currentChairSize}px。`,
-    arc:"3クリックで弧状に配置。",
-    line:"2クリックで直線状に配置。",
-    dim:"2クリックで寸法を表示。",
-    label:"クリックで小型ラベルを配置。",
-    rect:"クリックで四角形を配置。"
-  }[tool] || "ツールを選択してください。";
+    arc:"3クリックで弧配置。", line:"2クリックで直線配置。",
+    dim:"2クリックで寸法表示。", label:"クリックでラベル配置。", rect:"クリックで四角配置。"
+  }[tool] || "ツール選択";
   h.innerHTML = `💡 ヒント: ${text}`;
 }
 
 function changeZoom(v){ 
-  const val = parseInt(v);
-  zoomLevel = val / 100; 
-  document.getElementById('zoom-range').value = val;
-  document.getElementById('zoom-input').value = val;
+  const val = parseInt(v); zoomLevel = val / 100; 
+  document.getElementById('zoom-range').value = val; document.getElementById('zoom-input').value = val;
   document.getElementById('zoom-container').style.transform=`scale(${zoomLevel})`; 
 }
-
 function updateSizeSetting(v){
-  const val = parseInt(v);
-  currentChairSize = val;
-  document.getElementById('size-range').value = val;
-  document.getElementById('size-input').value = val;
+  const val = parseInt(v); currentChairSize = val;
+  document.getElementById('size-range').value = val; document.getElementById('size-input').value = val;
+}
+
+// フォントサイズの動的計算
+function getAutoFontSize(text, radius) {
+    const len = text.length;
+    if (len <= 2) return radius * 0.45; // 少ない文字数は大きめ
+    if (len <= 4) return radius * 0.35; // 中間
+    return radius * (1.2 / len); // 文字数に応じて縮小
+}
+
+function addElem(type,x,y,opts={}){
+  const id=opts.id||++idCounter;
+  const div=document.createElement('div');
+  div.className='elem'; div.dataset.id=id;
+  div.style.left=x+'px'; div.style.top=y+'px';
+  const w=opts.w||(type==='chair'?currentChairSize:80), h=opts.h||(type==='chair'?currentChairSize:30);
+  const ang=opts.angle||0, color=opts.color || (type==='chair'?currentInst.c:'#555');
+  div.style.width=w+'px'; div.style.height=h+'px'; div.style.transform=`rotate(${ang}deg)`;
+  
+  if(type==='chair'){
+    const labelText = opts.label||currentInst.l;
+    const fs = getAutoFontSize(labelText, w);
+    div.innerHTML=`<div class="chair" style="border-color:${color};color:${color}"><div class="chair-text" style="font-size:${fs}px">${labelText}</div></div>`;
+  } else if(type==='dim'){
+    div.className='elem dim-elem'; div.style.width='auto'; div.style.height='auto';
+    div.innerHTML=`<div class="dim-line" style="width:${w}px;transform:rotate(${ang}deg)"></div><div class="dim-text" style="left:${w/2}px">${opts.text}</div>`;
+  } else {
+    div.className+=(type==='label'?' label-elem':' rect-elem');
+    div.style.borderColor=color; div.style.color=color; div.textContent=opts.text||'';
+    ['nw','se','rot'].forEach(p=>{ const h=document.createElement('div'); h.className='handle '+p; if(p!=='rot') h.dataset.pos=p; div.appendChild(h); });
+  }
+  stage.appendChild(div);
+  const rec={id,type,dom:div,x,y,w,h,angle:ang,color,label:opts.label||'',text:opts.text||''};
+  elements.push(rec); return rec;
 }
 
 function setupEvents(){
@@ -271,7 +282,6 @@ function getXY(e){
   const r=stage.getBoundingClientRect();
   return {x:(e.clientX-r.left)/zoomLevel, y:(e.clientY-r.top)/zoomLevel};
 }
-
 function snap(p1, p2) {
   if (!isShift) return p2;
   const dx = Math.abs(p2.x - p1.x), dy = Math.abs(p2.y - p1.y);
@@ -280,7 +290,6 @@ function snap(p1, p2) {
 
 function onDown(e){
   let pt=getXY(e);
-  // Handle controls
   if(e.target.classList.contains('handle')){
     const rec=elements.find(el=>el.dom===e.target.parentElement);
     if(e.target.classList.contains('rot')){
@@ -289,8 +298,6 @@ function onDown(e){
     } else { resizingObj=rec; resizeHandle=e.target.dataset.pos; }
     e.stopPropagation(); return;
   }
-
-  // Handle element click
   const ed=e.target.closest('.elem');
   if(ed){
     const rec=elements.find(el=>el.id==ed.dataset.id);
@@ -301,16 +308,7 @@ function onDown(e){
     }
     return;
   }
-
-  // Handle background click (Tool specific)
-  if(tool==='select'){
-    clearSelection();
-    isSelecting=true;
-    selectStart=pt;
-    selRectDom.style.display='block';
-    selRectDom.style.width='0';
-    selRectDom.style.height='0';
-  }
+  if(tool==='select'){ clearSelection(); isSelecting=true; selectStart=pt; selRectDom.style.display='block'; }
   else if(tool==='chair') addElem('chair',pt.x-currentChairSize/2,pt.y-currentChairSize/2);
   else if(tool==='label') addElem('label',pt.x-22,pt.y-12,{text:prompt('ラベル内容','')||'Label', color:PERC_COLOR, w:45, h:25});
   else if(tool==='rect') addElem('rect',pt.x-50,pt.y-30);
@@ -321,14 +319,11 @@ function onDown(e){
 
 function onMove(e){
   let pt=getXY(e);
-  
   if(isSelecting){
     const x=Math.min(pt.x, selectStart.x), y=Math.min(pt.y, selectStart.y);
     const w=Math.abs(pt.x-selectStart.x), h=Math.abs(pt.y-selectStart.y);
     selRectDom.style.left=x+'px'; selRectDom.style.top=y+'px';
     selRectDom.style.width=w+'px'; selRectDom.style.height=h+'px';
-    
-    // Auto-select inside rect
     elements.forEach(el=>{
       const isInside = (el.x > x && el.x+el.w < x+w && el.y > y && el.y+el.h < y+h);
       if(isInside && !selectedList.includes(el)) { el.dom.classList.add('selected'); selectedList.push(el); }
@@ -336,22 +331,19 @@ function onMove(e){
     });
     updateProps();
   }
-
   if(draggingObjs.length){
     draggingObjs.forEach(d=>{ d.obj.x=pt.x-d.ox; d.obj.y=pt.y-d.oy; d.obj.dom.style.left=d.obj.x+'px'; d.obj.dom.style.top=d.obj.y+'px'; });
   }
-  
   if(resizingObj){
     const r=resizingObj;
-    if(resizeHandle==='se'){ r.w=Math.max(20,pt.x-r.x); r.h=Math.max(20,pt.y-r.y); }
-    else if(resizeHandle==='nw'){ const or=r.x+r.w, ob=r.y+r.h; r.x=pt.x; r.y=pt.y; r.w=Math.max(20,or-pt.x); r.h=Math.max(20,ob-pt.y); }
+    if(resizeHandle==='se'){ r.w=Math.max(15,pt.x-r.x); r.h=Math.max(15,pt.y-r.y); }
+    else if(resizeHandle==='nw'){ const or=r.x+r.w, ob=r.y+r.h; r.x=pt.x; r.y=pt.y; r.w=Math.max(15,or-pt.x); r.h=Math.max(15,ob-pt.y); }
     r.dom.style.left=r.x+'px'; r.dom.style.top=r.y+'px'; r.dom.style.width=r.w+'px'; r.dom.style.height=r.h+'px';
     if(r.type==='chair'){
         const txt=r.dom.querySelector('.chair-text');
-        if(txt) txt.style.fontSize = Math.max(7, r.w/3.5) + 'px';
+        if(txt) txt.style.fontSize = getAutoFontSize(r.label, r.w) + 'px';
     }
   }
-
   if(rotatingObj){
     const r=rotatingObj, c={x:r.x+r.w/2, y:r.y+r.h/2};
     let a=startAng+(Math.atan2(pt.y-c.y, pt.x-c.x)-startMouseAng)*180/Math.PI;
@@ -360,100 +352,13 @@ function onMove(e){
   }
   if(arcPts.length||linePts.length||dimPts.length) drawPreviews(pt);
 }
-
 function onUp(){
   if(isSelecting) { isSelecting=false; selRectDom.style.display='none'; }
   if(draggingObjs.length||resizingObj||rotatingObj) saveHistory();
   draggingObjs=[]; resizingObj=null; rotatingObj=null;
 }
 
-function addElem(type,x,y,opts={}){
-  const id=opts.id||++idCounter;
-  const div=document.createElement('div');
-  div.className='elem'; div.dataset.id=id;
-  div.style.left=x+'px'; div.style.top=y+'px';
-  const w=opts.w||(type==='chair'?currentChairSize:80), h=opts.h||(type==='chair'?currentChairSize:30);
-  const ang=opts.angle||0, color=opts.color || (type==='chair'?currentInst.c:'#555');
-  div.style.width=w+'px'; div.style.height=h+'px'; div.style.transform=`rotate(${ang}deg)`;
-  
-  if(type==='chair'){
-    // フォントサイズを椅子サイズに追従させる (w/3.5)
-    const fontSize = Math.max(7, w / 3.5);
-    div.innerHTML=`<div class="chair" style="border-color:${color};color:${color}"><div class="chair-text" style="font-size:${fontSize}px">${opts.label||currentInst.l}</div></div>`;
-  } else if(type==='dim'){
-    div.className='elem dim-elem'; div.style.width='auto'; div.style.height='auto';
-    div.innerHTML=`<div class="dim-line" style="width:${w}px;transform:rotate(${ang}deg)"></div><div class="dim-text" style="left:${w/2}px">${opts.text}</div>`;
-  } else {
-    div.className+=(type==='label'?' label-elem':' rect-elem');
-    div.style.borderColor=color; div.style.color=color; div.textContent=opts.text||'';
-    ['nw','se','rot'].forEach(p=>{ const h=document.createElement('div'); h.className='handle '+p; if(p!=='rot') h.dataset.pos=p; div.appendChild(h); });
-  }
-  stage.appendChild(div);
-  const rec={id,type,dom:div,x,y,w,h,angle:ang,color,label:opts.label||'',text:opts.text||''};
-  elements.push(rec); return rec;
-}
-
-function handleArc(pt){
-  arcPts.push(pt);
-  if(arcPts.length===3){
-    const n=prompt("椅子の数",4); if(n){
-      const [p1,p2,p3]=arcPts;
-      for(let i=0;i<n;i++){
-        const t=i/(n-1||1);
-        const x=Math.pow(1-t,2)*p1.x+2*(1-t)*t*p3.x+Math.pow(t,2)*p2.x;
-        const y=Math.pow(1-t,2)*p1.y+2*(1-t)*t*p3.y+Math.pow(t,2)*p2.y;
-        addElem('chair',x-currentChairSize/2,y-currentChairSize/2);
-      }
-      saveHistory();
-    }
-    arcPts=[]; clearSVG();
-  }
-}
-
-function handleLine(pt){
-  const last=linePts[linePts.length-1], finalPt=last?snap(last,pt):pt;
-  linePts.push(finalPt);
-  if(linePts.length===2){
-    const n=prompt("椅子の数",4); if(n){
-      const [p1,p2]=linePts;
-      for(let i=0;i<n;i++){
-        const t=i/(n-1||1);
-        addElem('chair',p1.x+(p2.x-p1.x)*t-currentChairSize/2,p1.y+(p2.y-p1.y)*t-currentChairSize/2);
-      }
-      saveHistory();
-    }
-    linePts=[]; clearSVG();
-  }
-}
-
-function handleDim(pt){
-  const last=dimPts[dimPts.length-1], finalPt=last?snap(last,pt):pt;
-  dimPts.push(finalPt);
-  if(dimPts.length===2){
-    const val=prompt("寸法値","1.0m");
-    if(val){
-      const [p1,p2]=dimPts; const dx=p2.x-p1.x, dy=p2.y-p1.y;
-      addElem('dim',p1.x,p1.y,{w:Math.sqrt(dx*dx+dy*dy),angle:Math.atan2(dy,dx)*180/Math.PI,text:val});
-      saveHistory();
-    }
-    dimPts=[]; clearSVG();
-  }
-}
-
-function drawPreviews(pt){
-  clearSVG();
-  if(arcPts.length===1) drawLine(arcPts[0],pt);
-  if(arcPts.length===2) { 
-    const p=document.createElementNS('http://www.w3.org/2000/svg','path'); 
-    p.setAttribute('d',`M${arcPts[0].x},${arcPts[0].y} Q${pt.x},${pt.y} ${arcPts[1].x},${arcPts[1].y}`); 
-    p.setAttribute('stroke','#1d9e75'); p.setAttribute('fill','none'); svg.appendChild(p); 
-  }
-  if(linePts.length===1) drawLine(linePts[0], snap(linePts[0],pt));
-  if(dimPts.length===1) drawLine(dimPts[0], snap(dimPts[0],pt));
-}
-function drawLine(p1,p2){ const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',p1.x);l.setAttribute('y1',p1.y);l.setAttribute('x2',p2.x);l.setAttribute('y2',p2.y);l.setAttribute('stroke','#1d9e75');svg.appendChild(l); }
-function clearSVG(){ svg.innerHTML=''; }
-
+// --- Multi-Select & Props ---
 function selectSingle(r){ clearSelection(); selectedList=[r]; r.dom.classList.add('selected'); updateProps(); }
 function toggleSelect(r){ if(selectedList.includes(r)) { r.dom.classList.remove('selected'); selectedList=selectedList.filter(x=>x!==r); } else { r.dom.classList.add('selected'); selectedList.push(r); } updateProps(); }
 function clearSelection(){ selectedList.forEach(r=>r.dom.classList.remove('selected')); selectedList=[]; updateProps(); }
@@ -461,7 +366,12 @@ function clearSelection(){ selectedList.forEach(r=>r.dom.classList.remove('selec
 function updateProps(){
   const p=document.getElementById('props');
   if(!selectedList.length){ p.textContent='要素を選択して編集'; return; }
-  if(selectedList.length > 1) { p.textContent=`${selectedList.length}個の要素を選択中`; return; }
+  
+  if(selectedList.length > 1) {
+    p.innerHTML = `<span style="font-weight:bold;color:#1d9e75">${selectedList.length}個の要素を選択中</span> 
+                   <button onclick="deleteSelected()" style="color:red;margin-left:10px;border-color:#f88">選択中の要素を削除</button>`;
+    return;
+  }
   
   const s=selectedList[0];
   let h=`内容:<input type="text" value="${s.type==='chair'?s.label:s.text}" oninput="updateSel('${s.type==='chair'?'label':'text'}',this.value)"> `;
@@ -469,45 +379,30 @@ function updateProps(){
   p.innerHTML=h;
 }
 function updateSel(k,v){ selectedList.forEach(s=>{
-  s[k]=v; if(k==='label')s.dom.querySelector('.chair-text').textContent=v;
+  s[k]=v; if(k==='label') {
+    const t=s.dom.querySelector('.chair-text');
+    t.textContent=v; t.style.fontSize = getAutoFontSize(v, s.w) + 'px';
+  }
   if(k==='text'){ if(s.type==='dim') s.dom.querySelector('.dim-text').textContent=v; else { const hs=s.dom.querySelectorAll('.handle'); s.dom.textContent=v; hs.forEach(h=>s.dom.appendChild(h)); } }
 }); saveHistory(); }
 
 function deleteSelected(){ selectedList.forEach(s=>{s.dom.remove();elements=elements.filter(e=>e.id!==s.id);}); clearSelection(); saveHistory(); }
 
-function saveHistory(){
-  const s=JSON.stringify({elements:elements.map(e=>({type:e.type,x:e.x,y:e.y,w:e.w,h:e.h,angle:e.angle,color:e.color,label:e.label,text:e.text}))});
-  history=history.slice(0,historyIndex+1); history.push(s); if(history.length>30)history.shift(); else historyIndex++;
-  document.getElementById('undo-btn').disabled=historyIndex<=0;
-}
+// --- Others (Arc, Line, Dim, History, PDF/PNG) ---
+function handleArc(pt){ arcPts.push(pt); if(arcPts.length===3){ const n=prompt("椅子の数",4); if(n){ const [p1,p2,p3]=arcPts; for(let i=0;i<n;i++){ const t=i/(n-1||1); const x=Math.pow(1-t,2)*p1.x+2*(1-t)*t*p3.x+Math.pow(t,2)*p2.x; const y=Math.pow(1-t,2)*p1.y+2*(1-t)*t*p3.y+Math.pow(t,2)*p2.y; addElem('chair',x-currentChairSize/2,y-currentChairSize/2); } saveHistory(); } arcPts=[]; clearSVG(); } }
+function handleLine(pt){ const last=linePts[linePts.length-1], finalPt=last?snap(last,pt):pt; linePts.push(finalPt); if(linePts.length===2){ const n=prompt("椅子の数",4); if(n){ const [p1,p2]=linePts; for(let i=0;i<n;i++){ const t=i/(n-1||1); addElem('chair',p1.x+(p2.x-p1.x)*t-currentChairSize/2,p1.y+(p2.y-p1.y)*t-currentChairSize/2); } saveHistory(); } linePts=[]; clearSVG(); } }
+function handleDim(pt){ const last=dimPts[dimPts.length-1], finalPt=last?snap(last,pt):pt; dimPts.push(finalPt); if(dimPts.length===2){ const val=prompt("寸法値","1.0m"); if(val){ const [p1,p2]=dimPts; const dx=p2.x-p1.x, dy=p2.y-p1.y; addElem('dim',p1.x,p1.y,{w:Math.sqrt(dx*dx+dy*dy),angle:Math.atan2(dy,dx)*180/Math.PI,text:val}); saveHistory(); } dimPts=[]; clearSVG(); } }
+function drawPreviews(pt){ clearSVG(); if(arcPts.length===1) drawLine(arcPts[0],pt); if(arcPts.length===2) { const p=document.createElementNS('http://www.w3.org/2000/svg','path'); p.setAttribute('d',`M${arcPts[0].x},${arcPts[0].y} Q${pt.x},${pt.y} ${arcPts[1].x},${arcPts[1].y}`); p.setAttribute('stroke','#1d9e75'); p.setAttribute('fill','none'); svg.appendChild(p); } if(linePts.length===1) drawLine(linePts[0], snap(linePts[0],pt)); if(dimPts.length===1) drawLine(dimPts[0], snap(dimPts[0],pt)); }
+function drawLine(p1,p2){ const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',p1.x);l.setAttribute('y1',p1.y);l.setAttribute('x2',p2.x);l.setAttribute('y2',p2.y);l.setAttribute('stroke','#1d9e75');svg.appendChild(l); }
+function clearSVG(){ svg.innerHTML=''; }
+
+function saveHistory(){ const s=JSON.stringify({elements:elements.map(e=>({type:e.type,x:e.x,y:e.y,w:e.w,h:e.h,angle:e.angle,color:e.color,label:e.label,text:e.text}))}); history=history.slice(0,historyIndex+1); history.push(s); if(history.length>30)history.shift(); else historyIndex++; document.getElementById('undo-btn').disabled=historyIndex<=0; }
 function undo(){ if(historyIndex>0){ historyIndex--; applyState(); } }
-function applyState(){
-  const s=JSON.parse(history[historyIndex]); elements.forEach(e=>e.dom.remove()); elements=[];
-  s.elements.forEach(en=>addElem(en.type,en.x,en.y,en)); clearSelection();
-}
+function applyState(){ const s=JSON.parse(history[historyIndex]); elements.forEach(e=>e.dom.remove()); elements=[]; s.elements.forEach(en=>addElem(en.type,en.x,en.y,en)); clearSelection(); }
 
-function exportTemplate(){
-  const d=JSON.stringify({elements:elements.map(e=>({type:e.type,x:e.x,y:e.y,w:e.w,h:e.h,angle:e.angle,color:e.color,label:e.label,text:e.text}))});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([d],{type:'application/json'})); a.download='template.json'; a.click();
-}
-function importTemplate(){
-  const i=document.createElement('input'); i.type='file'; i.onchange=async e=>{
-    const d=JSON.parse(await e.target.files[0].text()); elements.forEach(el=>el.dom.remove()); elements=[];
-    d.elements.forEach(en=>addElem(en.type,en.x,en.y,en)); saveHistory();
-  }; i.click();
-}
-
-async function loadPDF(){
-  const i=document.createElement('input'); i.type='file'; i.accept='.pdf';
-  i.onchange=async e=>{
-    const d=new Uint8Array(await e.target.files[0].arrayBuffer());
-    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    const pdf=await pdfjsLib.getDocument({data:d}).promise; const page=await pdf.getPage(1);
-    const vp=page.getViewport({scale:1.5}); const cv=document.getElementById('bg');
-    cv.width=vp.width; cv.height=vp.height; stage.style.width=vp.width+'px'; stage.style.height=vp.height+'px';
-    await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise; cv.style.display='block';
-  }; i.click();
-}
+function exportTemplate(){ const d=JSON.stringify({elements:elements.map(e=>({type:e.type,x:e.x,y:e.y,w:e.w,h:e.h,angle:e.angle,color:e.color,label:e.label,text:e.text}))}); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([d],{type:'application/json'})); a.download='template.json'; a.click(); }
+function importTemplate(){ const i=document.createElement('input'); i.type='file'; i.onchange=async e=>{ const d=JSON.parse(await e.target.files[0].text()); elements.forEach(el=>el.dom.remove()); elements=[]; d.elements.forEach(en=>addElem(en.type,en.x,en.y,en)); saveHistory(); }; i.click(); }
+async function loadPDF(){ const i=document.createElement('input'); i.type='file'; i.accept='.pdf'; i.onchange=async e=>{ const d=new Uint8Array(await e.target.files[0].arrayBuffer()); pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; const pdf=await pdfjsLib.getDocument({data:d}).promise; const page=await pdf.getPage(1); const vp=page.getViewport({scale:1.5}); const cv=document.getElementById('bg'); cv.width=vp.width; cv.height=vp.height; stage.style.width=vp.width+'px'; stage.style.height=vp.height+'px'; await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise; cv.style.display='block'; }; i.click(); }
 function exportPNG(){ html2canvas(stage,{scale:2}).then(c=>{ const a=document.createElement('a'); a.download='stage.png'; a.href=c.toDataURL(); a.click(); }); }
 
 window.onload=init;
