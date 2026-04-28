@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Stage Layout Maker v20.1</title>
+<title>Stage Layout Maker v20.2</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
@@ -29,7 +29,7 @@
     .inst { padding: 8px 10px; font-size: 12px; border-bottom: 1px solid #f0f0f0; cursor: pointer; display: flex; align-items: center; gap: 8px; }
 
     /* Canvas Area */
-    #canvas-wrap { flex: 1; overflow: auto; position: relative; padding: 20px; }
+    #canvas-wrap { flex: 1; overflow: auto; position: relative; padding: 40px; }
     #zoom-container { transform-origin: top left; }
     #stage { position: relative; background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.2); user-select: none; }
     .grid { position: absolute; inset: 0; pointer-events: none; z-index: 2; background-image: linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px); background-size: 30px 30px; }
@@ -47,8 +47,10 @@
     .resize-se { bottom: -7px; right: -7px; cursor: nwse-resize; }
     .rotate-h { top: -35px; left: 50%; transform: translateX(-50%); background: #ff9800; cursor: crosshair; }
 
-    /* Selection Box */
-    #selection-box { position: absolute; border: 1px solid var(--primary); background: rgba(29, 158, 117, 0.1); pointer-events: none; z-index: 200; display: none; }
+    /* Guide Panel */
+    #guide-panel { position: fixed; top: 60px; left: 180px; background: rgba(255,255,255,0.9); border: 1px solid #ccc; border-radius: 8px; padding: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1000; font-size: 12px; display: none; }
+    .step { display: flex; align-items: center; gap: 8px; margin: 4px 0; opacity: 0.3; }
+    .step.active { opacity: 1; color: var(--primary); font-weight: bold; }
 
     /* Property Bar */
     #prop-bar { height: 50px; background: white; border-top: 1px solid #ccc; display: flex; align-items: center; padding: 0 15px; gap: 10px; font-size: 11px; flex-shrink: 0; }
@@ -95,10 +97,14 @@
             <div id="stage" style="width:1000px; height:750px;">
                 <div class="grid"></div>
                 <svg id="svg-layer"></svg>
-                <div id="selection-box"></div>
             </div>
         </div>
     </div>
+</div>
+
+<div id="guide-panel">
+    <div id="guide-title" style="font-weight:bold; margin-bottom:5px;"></div>
+    <div id="guide-steps"></div>
 </div>
 
 <div id="prop-bar">
@@ -111,14 +117,13 @@
 </div>
 
 <script>
-// 基本データ
 const MAIN_INST=[{l:"Fl",c:"#e35"},{l:"Cl",c:"#36a"},{l:"Sax",c:"#1a8"},{l:"Tp",c:"#c70"},{l:"Tb",c:"#a84"},{l:"Hr",c:"#84a"},{l:"Tu",c:"#08a"}];
 const PERC_CHAIRS=["Timp.","S.D.","Drm","Cym"];
 
 let elements = [], selectedIds = [], tool = 'select';
 let zoom = 1.0, chairSize = 26, history = [], historyIdx = -1;
 let currentInst = MAIN_INST[0];
-let dragData = null, selectBoxStart = null;
+let dragData = null, pts = [];
 
 const stage = document.getElementById('stage');
 const svg = document.getElementById('svg-layer');
@@ -157,8 +162,9 @@ function switchTab(t) {
 }
 
 function setTool(t) {
-    tool = t;
+    tool = t; pts = [];
     document.querySelectorAll('button[id^=btn-]').forEach(b => b.classList.toggle('active', b.id === 'btn-'+t));
+    updateGuide(); render();
 }
 
 function syncZoom(val) {
@@ -166,15 +172,36 @@ function syncZoom(val) {
     document.getElementById('zoom-container').style.transform = `scale(${zoom})`;
 }
 
+// 軌道計算
+function getPointOnPath(path, t) {
+    const p = path.pts;
+    if (path.type === 'line') return { x: p[0].x + (p[1].x - p[0].x) * t, y: p[0].y + (p[1].y - p[0].y) * t };
+    return {
+        x: Math.pow(1 - t, 2) * p[0].x + 2 * (1 - t) * t * p[2].x + Math.pow(t, 2) * p[1].x,
+        y: Math.pow(1 - t, 2) * p[0].y + 2 * (1 - t) * t * p[2].y + Math.pow(t, 2) * p[1].y
+    };
+}
+
 function addElem(opts) {
     const el = {
         id: Date.now() + Math.random(), type: opts.type, 
         x: opts.x, y: opts.y, w: opts.w || 26, h: opts.h || 26,
-        angle: 0, color: opts.color || currentInst.c, label: opts.text || currentInst.l
+        angle: 0, color: opts.color || currentInst.c, label: opts.label || currentInst.l,
+        gid: opts.gid || null, path: opts.path || null, t: opts.t || 0
     };
     elements.push(el);
     render();
     return el;
+}
+
+function createGroup(type, p, n) {
+    const gid = Date.now();
+    for (let i = 0; i < n; i++) {
+        const t = n > 1 ? i / (n - 1) : 0.5;
+        const pos = getPointOnPath({ type, pts: p }, t);
+        addElem({ type: 'chair', x: pos.x - chairSize/2, y: pos.y - chairSize/2, gid, path: { type, pts: p }, t });
+    }
+    saveHistory();
 }
 
 function render() {
@@ -184,13 +211,54 @@ function render() {
         div.className = `elem ${el.type} ${selectedIds.includes(el.id) ? 'selected' : ''}`;
         div.style.cssText = `left:${el.x}px; top:${el.y}px; width:${el.w}px; height:${el.h}px; transform:rotate(${el.angle}deg); border-color:${el.color}; color:${el.color};`;
         div.dataset.id = el.id;
-        div.innerHTML = `<div>${el.label}</div>`;
-        if(selectedIds.includes(el.id) && el.type !== 'chair') {
-            div.innerHTML += `<div class="handle resize-se"></div><div class="handle rotate-h"></div>`;
-        }
+        div.innerHTML = `<div style="font-size:${el.w/3.2}px">${el.label}</div>`;
         stage.appendChild(div);
     });
+    renderSVG();
     updateProps();
+}
+
+function renderSVG() {
+    svg.innerHTML = '';
+    const processedGids = new Set();
+    elements.forEach(el => {
+        if (el.gid && el.path && !processedGids.has(el.gid)) {
+            processedGids.add(el.gid);
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const d = el.path.type === 'arc' 
+                ? `M ${el.path.pts[0].x} ${el.path.pts[0].y} Q ${el.path.pts[2].x} ${el.path.pts[2].y} ${el.path.pts[1].x} ${el.path.pts[1].y}`
+                : `M ${el.path.pts[0].x} ${el.path.pts[0].y} L ${el.path.pts[1].x} ${el.path.pts[1].y}`;
+            path.setAttribute('d', d);
+            path.setAttribute('stroke', 'rgba(29,158,117,0.4)');
+            path.setAttribute('fill', 'none'); path.setAttribute('stroke-dasharray', '5,5');
+            svg.appendChild(path);
+        }
+    });
+    // プレビュー描画（クリック途中）
+    if(tool === 'arc' && pts.length > 0) {
+        if(pts.length === 1) drawPreviewLine(pts[0], lastMouse);
+        else if(pts.length === 2) drawPreviewArc(pts[0], pts[1], lastMouse);
+    }
+}
+
+function drawPreviewLine(p1, p2) {
+    const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    l.setAttribute('x1', p1.x); l.setAttribute('y1', p1.y); l.setAttribute('x2', p2.x); l.setAttribute('y2', p2.y);
+    l.setAttribute('stroke', '#1d9e75'); svg.appendChild(l);
+}
+function drawPreviewArc(p1, p2, p3) {
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', `M ${p1.x} ${p1.y} Q ${p3.x} ${p3.y} ${p2.x} ${p2.y}`);
+    p.setAttribute('stroke', '#1d9e75'); p.setAttribute('fill', 'none'); svg.appendChild(p);
+}
+
+function updateGuide() {
+    const g = document.getElementById('guide-panel');
+    if(tool !== 'arc') { g.style.display = 'none'; return; }
+    g.style.display = 'block';
+    const steps = ['左端をクリック', '右端をクリック', '中央(膨らみ)をクリック'];
+    document.getElementById('guide-title').textContent = '⌒ 弧配置';
+    document.getElementById('guide-steps').innerHTML = steps.map((s,i) => `<div class="step ${i===pts.length?'active':''}">${i+1}. ${s}</div>`).join('');
 }
 
 function updateProps() {
@@ -210,32 +278,44 @@ function deleteSelected() {
     render(); saveHistory();
 }
 
+let lastMouse = {x:0, y:0};
 function setupEvents() {
     stage.addEventListener('pointerdown', e => {
         const r = stage.getBoundingClientRect();
         const x = (e.clientX - r.left)/zoom, y = (e.clientY - r.top)/zoom;
+        const pos = {x, y};
         const target = e.target.closest('.elem');
         
         if(tool === 'select') {
             if(target) {
                 const id = parseFloat(target.dataset.id);
                 selectedIds = [id];
-                dragData = { el: elements.find(el => el.id === id), ox: x - elements.find(el => el.id === id).x, oy: y - elements.find(el => el.id === id).y };
-            } else {
-                selectedIds = [];
-            }
+                const el = elements.find(item => item.id === id);
+                dragData = { el, ox: x - el.x, oy: y - el.y };
+            } else { selectedIds = []; }
             render();
         } else if(tool === 'chair') {
             addElem({type:'chair', x: x-13, y: y-13}); saveHistory();
+        } else if(tool === 'arc') {
+            pts.push(pos);
+            if(pts.length === 3) {
+                const n = prompt("椅子の数", "5");
+                if(n) createGroup('arc', [...pts], parseInt(n));
+                pts = [];
+            }
+            updateGuide(); render();
         }
     });
 
     window.addEventListener('pointermove', e => {
+        const r = stage.getBoundingClientRect();
+        lastMouse = { x: (e.clientX - r.left)/zoom, y: (e.clientY - r.top)/zoom };
         if(dragData) {
-            const r = stage.getBoundingClientRect();
-            dragData.el.x = (e.clientX - r.left)/zoom - dragData.ox;
-            dragData.el.y = (e.clientY - r.top)/zoom - dragData.oy;
+            dragData.el.x = lastMouse.x - dragData.ox;
+            dragData.el.y = lastMouse.y - dragData.oy;
             render();
+        } else if(tool === 'arc' && pts.length > 0) {
+            renderSVG();
         }
     });
 
