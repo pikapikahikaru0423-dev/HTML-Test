@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>舞台配置図 Pro v17.8</title>
+<title>舞台配置図 Pro v17.9</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
@@ -26,14 +26,12 @@ button{
 }
 button:hover{background:#f0f0ee;}
 button.active{background:#e1f5ee;border-color:#1d9e75;color:#0f6e56;font-weight:600;}
-button:disabled{opacity:0.3;cursor:default;}
 
 input[type=range]{width:60px;cursor:pointer;vertical-align:middle;}
 .val-disp{min-width:35px;display:inline-block;font-weight:bold;color:#1d9e75;text-align:right;}
 input[type=number]{width:48px;padding:3px 5px;font-size:11px;border:1px solid #ccc;border-radius:4px;}
-input[type=color]{width:30px;height:24px;padding:0;border:none;background:none;cursor:pointer;}
 
-/* Main */
+/* Main Layout */
 #main{display:flex;flex:1;overflow:hidden;}
 #sidebar{width:175px;background:white;border-right:1px solid #ddd;display:flex;flex-direction:column;flex-shrink:0;}
 .tabs{display:flex;border-bottom:1px solid #eee;background:#f9f9f9;}
@@ -61,7 +59,7 @@ input[type=color]{width:30px;height:24px;padding:0;border:none;background:none;c
 .dim-line{position:absolute;height:2px;background:#1d9e75;transform-origin:0 50%;}
 .dim-text{position:absolute;color:#1d9e75;font-weight:bold;font-size:12px;white-space:nowrap;transform:translate(-50%,-120%);}
 
-/* Handles */
+/* Resize/Rotate Handles */
 .handle{position:absolute;width:12px;height:12px;background:#1d9e75;border:2px solid white;border-radius:50%;z-index:25;display:none;}
 .elem.selected .handle{display:block;}
 .nw{top:-6px;left:-6px;cursor:nwse-resize;}
@@ -134,7 +132,7 @@ input[type=color]{width:30px;height:24px;padding:0;border:none;background:none;c
 </div>
 
 <script>
-// 楽器定義
+// --- Data Definitions ---
 const MAIN_INST=[
   {l:"Pic",c:"#e35"},{l:"Fl",c:"#e35"},{l:"Ob",c:"#c44"},
   {l:"B♭Cl",c:"#36a"},{l:"B.Cl",c:"#36a"},
@@ -144,6 +142,7 @@ const MAIN_INST=[
   {l:"Eu",c:"#08a"},{l:"Stb",c:"#555"}
 ];
 
+const PERC_COLOR = "#2a4a8a"; // 地味じゃない打楽器用ディープブルー
 const PERC_LABELS=["BD","Chime","Harp","Piano","Vib.","Xlo.","Marb.","Glo.","W.C.","T.-tam","Timb.","Bongos","Congas","StPa","Base","Synth."];
 const PERC_CHAIRS=["Timp.","S.D.","4Tom","S.Cym","C.Cym","Drm","Bongos","Congas"];
 const PERC_MARCHING=["M.S.D.","M.BD1","M.BD2","M.BD3","M.BD4","TD"];
@@ -181,28 +180,24 @@ function renderList(list,id){
 
 function renderPercList(){
   const container=document.getElementById('list-perc');
-  const color = "#2a4a8a"; // 地味じゃない打楽器用の色（ディープブルー）
-
   const addSec=(title,list,type)=>{
     const h=document.createElement('div'); h.className='inst-header'; h.textContent=title; container.appendChild(h);
     list.forEach(l=>{
       const div=document.createElement('div'); div.className='inst';
       const isCircle = (type === 'chair' || type === 'marching');
-      div.innerHTML=`<span style="width:10px;height:10px;background:${color};border-radius:${isCircle?'50%':'2px'}"></span>${l}`;
+      div.innerHTML=`<span style="width:10px;height:10px;background:${PERC_COLOR};border-radius:${isCircle?'50%':'2px'}"></span>${l}`;
       div.onclick=()=>{
         updateInstSelection(div);
         if(isCircle){
-           currentInst={l:l, c:color}; setTool('chair');
+           currentInst={l:l, c:PERC_COLOR}; setTool('chair');
         } else {
-           // ラベル形式：横長すぎないサイズ(60x40)で配置
-           addElem('label',400,300,{text:l, color:color, w:60, h:40});
+           addElem('label',400,300,{text:l, color:PERC_COLOR, w:60, h:40});
            setTool('select');
         }
       };
       container.appendChild(div);
     });
   };
-
   addSec("ラベル（打楽器）", PERC_LABELS, "label");
   addSec("円形（打楽器）", PERC_CHAIRS, "chair");
   addSec("マーチング（円形）", PERC_MARCHING, "marching");
@@ -226,15 +221,15 @@ function setTool(t){
 
 function updateHint(){
   const h=document.getElementById('hint-box');
-  let text = "";
-  switch(tool){
-    case 'select': text = "要素をクリックして選択。ドラッグで移動。"; break;
-    case 'chair': text = `クリックして配置。現在のサイズ: ${currentChairSize}px`; break;
-    case 'arc': text = "3クリックで弧状に配置します。"; break;
-    case 'line': text = "2クリックで直線状に配置します。"; break;
-    case 'dim': text = "2クリックで寸法を表示します。"; break;
-    default: text = "ツールを選択してください。";
-  }
+  let text = {
+    select:"要素をクリックして選択。ドラッグで移動。Delキーで削除。",
+    chair:`クリックして配置。現在のサイズ: ${currentChairSize}px`,
+    arc:"3クリックで弧状に配置します。",
+    line:"2クリックで直線状に配置します。",
+    dim:"2クリックで寸法を表示します。",
+    label:"クリックしてラベルを配置します。",
+    rect:"クリックして四角形を配置します。"
+  }[tool] || "ツールを選択してください。";
   h.innerHTML = `💡 ヒント: ${text}`;
 }
 
@@ -247,13 +242,14 @@ function changeZoom(v){
 function updateSizeSetting(v){
   currentChairSize = parseInt(v);
   document.getElementById('size-val').textContent = v + "px";
-  // 選択中の椅子があればサイズを更新
-  selectedList.forEach(s => {
+  // 椅子および円形楽器を一括更新
+  elements.forEach(s => {
     if(s.type === 'chair') {
        s.w = s.h = currentChairSize;
        s.dom.style.width = s.w + 'px';
        s.dom.style.height = s.h + 'px';
-       s.dom.querySelector('.chair-text').style.fontSize = (s.w/3.2) + 'px';
+       const txt = s.dom.querySelector('.chair-text');
+       if(txt) txt.style.fontSize = (s.w/3.2) + 'px';
     }
   });
 }
@@ -301,7 +297,7 @@ function onDown(e){
   }
   if(tool==='select') clearSelection();
   else if(tool==='chair') addElem('chair',pt.x-currentChairSize/2,pt.y-currentChairSize/2);
-  else if(tool==='label') addElem('label',pt.x-30,pt.y-20,{text:prompt('内容','')||'ラベル', color:"#2a4a8a", w:60, h:40});
+  else if(tool==='label') addElem('label',pt.x-30,pt.y-20,{text:prompt('ラベル内容','')||'Label', color:PERC_COLOR, w:60, h:40});
   else if(tool==='rect') addElem('rect',pt.x-50,pt.y-30);
   else if(tool==='arc') handleArc(pt);
   else if(tool==='line') handleLine(pt);
