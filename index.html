@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>舞台配置図 Pro v20.0</title>
+<title>舞台配置図 Pro v20.1</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
@@ -20,7 +20,6 @@ button:hover{background:#f0f0ee;}
 button.active{background:#e1f5ee;border-color:#1d9e75;color:#0f6e56;font-weight:600;}
 button:disabled{opacity:0.3;cursor:default;}
 .btn-del{background:#fff0f0;color:#d33;border-color:#ffcccc;}
-.btn-del:hover{background:#ffe5e5;}
 
 .val-input {width:45px;height:22px;border:1px solid #1d9e75;border-radius:4px;background:#f0f7f5;text-align:center;font-weight:bold;color:#1d9e75;outline:none;font-size:11px;}
 input[type=range]{width:60px;cursor:pointer;vertical-align:middle;}
@@ -47,17 +46,18 @@ input[type=range]{width:60px;cursor:pointer;vertical-align:middle;}
 .chair{border-radius:50%;border:2px solid;background:white;display:flex;align-items:center;justify-content:center;font-weight:600;width:100%;height:100%;}
 .chair-text{position:absolute;white-space:nowrap;pointer-events:none;text-align:center;}
 .elem.selected{outline:2px solid #1d9e75;outline-offset:4px;}
-.elem.grouped-member{box-shadow: 0 0 0 2px rgba(29,158,117,0.2);}
+.elem.grouped-member{box-shadow: 0 0 0 2px rgba(29,158,117,0.1);}
 
-/* UI Adjustment: Rounded and Compact */
-.label-elem{background:white;border:1px solid #aaa;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:11px;padding:2px 8px;}
+/* UI Adjustment: Compact & Rounded */
+.label-elem{background:white;border:1px solid #aaa;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:11px;padding:2px 10px;min-width:40px;}
 .rect-elem{border:2px solid #555;background:rgba(200,200,200,0.1);display:flex;align-items:center;justify-content:center;border-radius:2px;}
 
+/* Dimensions */
 .dim-elem{pointer-events:auto;}
 .dim-line{position:absolute;height:2px;background:#1d9e75;transform-origin:0 50%;}
 .dim-text{position:absolute;color:#1d9e75;font-weight:bold;font-size:12px;white-space:nowrap;transform:translate(-50%,-120%);}
 
-/* Selection Box (iPad) */
+/* iPad Selection Box */
 #selection-box{position:absolute;border:1px dashed #1d9e75;background:rgba(29,158,117,0.1);pointer-events:none;z-index:1000;display:none;}
 
 /* Handles */
@@ -170,8 +170,7 @@ function init(){ renderList(MAIN_INST,'list-main'); renderList(OTHER_INST,'list-
 function renderList(list,id){ 
   const container=document.getElementById(id); 
   list.forEach(inst=>{ 
-    const div=document.createElement('div'); 
-    div.className='inst'; 
+    const div=document.createElement('div'); div.className='inst'; 
     div.innerHTML=`<span style="width:10px;height:10px;background:${inst.c};border-radius:50%"></span>${inst.l}`; 
     div.onclick=()=>{ currentInst=inst; updateInstSelection(div); if(tool==='select') setTool('chair'); }; 
     container.appendChild(div); 
@@ -181,15 +180,9 @@ function renderList(list,id){
 function renderPercList(){ 
   const container=document.getElementById('list-perc'); 
   PERC_LIST.forEach(l=>{ 
-    const div=document.createElement('div'); 
-    div.className='inst'; 
+    const div=document.createElement('div'); div.className='inst'; 
     div.innerHTML=`<span style="width:10px;height:10px;background:#2a4a8a;border-radius:2px"></span>${l}`; 
-    div.onclick=()=>{ 
-      updateInstSelection(div); 
-      // パーカッションは常にラベル形式（楽器名入り）で生成
-      addElem('label',400,300,{text:l, color:"#2a4a8a", w:50, h:24}); 
-      setTool('select'); 
-    }; 
+    div.onclick=()=>{ updateInstSelection(div); addElem('label',400,300,{text:l, color:"#2a4a8a"}); setTool('select'); }; 
     container.appendChild(div); 
   }); 
 }
@@ -220,9 +213,9 @@ function addElem(type,x,y,opts={}){
   div.className='elem'; div.dataset.id=id;
   div.style.left=x+'px'; div.style.top=y+'px';
   
-  // UI Slim Adjustment: Label and Rect sizes
+  // v20.1 スリム化設定
   let w = opts.w || (type==='chair'?currentChairSize:(type==='label'?50:60));
-  let h = opts.h || (type==='chair'?currentChairSize:(type==='label'?24:40));
+  let h = opts.h || (type==='chair'?currentChairSize:(type==='label'?24:35));
   
   const ang=opts.angle||0, color=opts.color||(type==='chair'?currentInst.c:'#555');
   div.style.width=w+'px'; div.style.height=h+'px'; div.style.transform=`rotate(${ang}deg)`;
@@ -255,12 +248,53 @@ function getPosOnPath(type,pts,t){
   return null;
 }
 
-function handleArc(pt){ arcPts.push(pt); updateGuide(); if(arcPts.length===3){ const n=prompt("椅子の数",4); if(n){ const pts=[...arcPts]; const gid=++gCounter; for(let i=0;i<n;i++){ const t=i/(n-1||1); const pos=getPosOnPath('arc',pts,t); addElem('chair',pos.x-currentChairSize/2,pos.y-currentChairSize/2,{gid,pathType:'arc',pathPts:pts,pathT:t}); } saveHistory(); refreshSVG(); } arcPts=[]; updateGuide(); } }
-function handleLine(pt){ const last=linePts[linePts.length-1], finalPt=last?snap(last,pt):pt; linePts.push(finalPt); updateGuide(); if(linePts.length===2){ const n=prompt("椅子の数",4); if(n){ const pts=[...linePts]; const gid=++gCounter; for(let i=0;i<n;i++){ const t=i/(n-1||1); const pos=getPosOnPath('line',pts,t); addElem('chair',pos.x-currentChairSize/2,pos.y-currentChairSize/2,{gid,pathType:'line',pathPts:pts,pathT:t}); } saveHistory(); refreshSVG(); } linePts=[]; updateGuide(); } }
+function handleArc(pt){ 
+  arcPts.push(pt); updateGuide(); 
+  if(arcPts.length===3){ 
+    const n=prompt("椅子の数",4); 
+    if(n){ 
+      const pts=[...arcPts]; const gid=++gCounter; 
+      for(let i=0;i<n;i++){ 
+        const t=i/(n-1||1); const pos=getPosOnPath('arc',pts,t); 
+        addElem('chair',pos.x-currentChairSize/2,pos.y-currentChairSize/2,{gid,pathType:'arc',pathPts:pts,pathT:t}); 
+      } 
+      saveHistory(); refreshSVG(); 
+    } 
+    arcPts=[]; updateGuide(); 
+  } 
+}
+function handleLine(pt){ 
+  const last=linePts[linePts.length-1], finalPt=last?snap(last,pt):pt; 
+  linePts.push(finalPt); updateGuide(); 
+  if(linePts.length===2){ 
+    const n=prompt("椅子の数",4); 
+    if(n){ 
+      const pts=[...linePts]; const gid=++gCounter; 
+      for(let i=0;i<n;i++){ 
+        const t=i/(n-1||1); const pos=getPosOnPath('line',pts,t); 
+        addElem('chair',pos.x-currentChairSize/2,pos.y-currentChairSize/2,{gid,pathType:'line',pathPts:pts,pathT:t}); 
+      } 
+      saveHistory(); refreshSVG(); 
+    } 
+    linePts=[]; updateGuide(); 
+  } 
+}
+function handleDim(pt){
+  const last=dimPts[dimPts.length-1], finalPt=last?snap(last,pt):pt;
+  dimPts.push(finalPt); updateGuide();
+  if(dimPts.length===2){
+    const val=prompt("寸法値","1.0m");
+    if(val){
+      const [p1,p2]=dimPts; const dx=p2.x-p1.x, dy=p2.y-p1.y;
+      addElem('dim',p1.x,p1.y,{w:Math.sqrt(dx*dx+dy*dy),angle:Math.atan2(dy,dx)*180/Math.PI,text:val});
+      saveHistory();
+    }
+    dimPts=[]; updateGuide();
+  }
+}
 
 function onDown(e){
   let pt=getXY(e);
-  // Handle interaction
   if(e.target.classList.contains('handle')){
     const rec=elements.find(el=>el.dom===e.target.parentElement);
     if(e.target.classList.contains('rot')){ rotatingObj=rec; const c={x:rec.x+rec.w/2, y:rec.y+rec.h/2}; startMouseAng=Math.atan2(pt.y-c.y, pt.x-c.x); startAng=rec.angle||0; }
@@ -268,7 +302,7 @@ function onDown(e){
     e.stopPropagation(); return;
   }
   
-  // Clicked on SVG (Arc/Line Guideline)
+  // 弧/線のガイド線クリック判定
   if(e.target.tagName === 'path' || e.target.tagName === 'line'){
     const gid = parseInt(e.target.dataset.gid);
     if(gid){
@@ -276,8 +310,7 @@ function onDown(e){
       clearSelection();
       group.forEach(el => { el.dom.classList.add('selected'); selectedList.push(el); });
       draggingObjs = selectedList.map(o => ({obj:o, ox:pt.x-o.x, oy:pt.y-o.y}));
-      updateProps();
-      return;
+      updateProps(); return;
     }
   }
 
@@ -291,17 +324,10 @@ function onDown(e){
     return;
   }
   
-  // Start Selection Box (iPad/PC)
   if(tool==='select'){
-    clearSelection();
-    isSelecting = true;
-    selectStart = pt;
+    clearSelection(); isSelecting = true; selectStart = pt;
     const box = document.getElementById('selection-box');
-    box.style.display = 'block';
-    box.style.left = pt.x + 'px';
-    box.style.top = pt.y + 'px';
-    box.style.width = '0';
-    box.style.height = '0';
+    box.style.display = 'block'; box.style.left = pt.x + 'px'; box.style.top = pt.y + 'px'; box.style.width = '0'; box.style.height = '0';
   }
   else if(tool==='chair') addElem('chair',pt.x-currentChairSize/2,pt.y-currentChairSize/2);
   else if(tool==='label') addElem('label',pt.x-25,pt.y-12,{text:prompt('内容','')||'ラベル', color:"#2a4a8a"});
@@ -318,7 +344,6 @@ function onMove(e){
     const x = Math.min(pt.x, selectStart.x), y = Math.min(pt.y, selectStart.y);
     const w = Math.abs(pt.x - selectStart.x), h = Math.abs(pt.y - selectStart.y);
     box.style.left = x + 'px'; box.style.top = y + 'px'; box.style.width = w + 'px'; box.style.height = h + 'px';
-    // Live selection check
     elements.forEach(el => {
       const inBox = (el.x > x && el.x + el.w < x + w && el.y > y && el.y + el.h < y + h);
       if(inBox && !selectedList.includes(el)) { el.dom.classList.add('selected'); selectedList.push(el); }
@@ -327,31 +352,31 @@ function onMove(e){
   if(draggingObjs.length){
     draggingObjs.forEach(d=>{
       if(d.obj.pathType && d.obj.pathPts && draggingObjs.length === 1){
-        // Individual slide on rail
-        const pts=d.obj.pathPts;
-        let bestT=0, minDist=999999;
+        const pts=d.obj.pathPts; let bestT=0, minDist=999999;
         for(let i=0; i<=100; i++){
-          const testT = i/100;
-          const p = getPosOnPath(d.obj.pathType, pts, testT);
+          const testT = i/100; const p = getPosOnPath(d.obj.pathType, pts, testT);
           const dist = (p.x-pt.x)**2 + (p.y-pt.y)**2;
           if(dist < minDist){ minDist = dist; bestT = testT; }
         }
-        d.obj.pathT = bestT;
-        const pos = getPosOnPath(d.obj.pathType, pts, bestT);
+        d.obj.pathT = bestT; const pos = getPosOnPath(d.obj.pathType, pts, bestT);
         d.obj.x = pos.x - d.obj.w/2; d.obj.y = pos.y - d.obj.h/2;
       } else {
-        // Group or free move
         d.obj.x=pt.x-d.ox; d.obj.y=pt.y-d.oy;
-        // If part of path group, update path origin (optional, for whole group movement)
-        if(d.obj.pathPts && draggingObjs.length > 1){
-           // pathPts updates would be here if we want to move the "rail" with the group
-        }
       }
       d.obj.dom.style.left=d.obj.x+'px'; d.obj.dom.style.top=d.obj.y+'px';
     });
   }
-  if(resizingObj){ const r=resizingObj; if(resizeHandle==='se'){ r.w=Math.max(20,pt.x-r.x); r.h=Math.max(20,pt.y-r.y); } else if(resizeHandle==='nw'){ const or=r.x+r.w, ob=r.y+r.h; r.x=pt.x; r.y=pt.y; r.w=Math.max(20,or-pt.x); r.h=Math.max(20,ob-pt.y); } r.dom.style.left=r.x+'px'; r.dom.style.top=r.y+'px'; r.dom.style.width=r.w+'px'; r.dom.style.height=r.h+'px'; }
-  if(rotatingObj){ const r=rotatingObj, c={x:r.x+r.w/2, y:r.y+r.h/2}; let a=startAng+(Math.atan2(pt.y-c.y, pt.x-c.x)-startMouseAng)*180/Math.PI; if(isShift) a=Math.round(a/45)*45; r.angle=a; r.dom.style.transform=`rotate(${r.angle}deg)`; }
+  if(resizingObj){ 
+    const r=resizingObj; 
+    if(resizeHandle==='se'){ r.w=Math.max(15,pt.x-r.x); r.h=Math.max(15,pt.y-r.y); } 
+    else if(resizeHandle==='nw'){ const or=r.x+r.w, ob=r.y+r.h; r.x=pt.x; r.y=pt.y; r.w=Math.max(15,or-pt.x); r.h=Math.max(15,ob-pt.y); } 
+    r.dom.style.left=r.x+'px'; r.dom.style.top=r.y+'px'; r.dom.style.width=r.w+'px'; r.dom.style.height=r.h+'px'; 
+  }
+  if(rotatingObj){ 
+    const r=rotatingObj, c={x:r.x+r.w/2, y:r.y+r.h/2}; 
+    let a=startAng+(Math.atan2(pt.y-c.y, pt.x-c.x)-startMouseAng)*180/Math.PI; 
+    if(isShift) a=Math.round(a/45)*45; r.angle=a; r.dom.style.transform=`rotate(${r.angle}deg)`; 
+  }
   drawPreviews(pt);
 }
 
@@ -359,7 +384,7 @@ function onUp(){
   if(draggingObjs.length||resizingObj||rotatingObj||isSelecting) saveHistory(); 
   draggingObjs=[]; resizingObj=null; rotatingObj=null; isSelecting=false;
   document.getElementById('selection-box').style.display = 'none';
-  updateProps();
+  updateProps(); refreshSVG();
 }
 
 function selectSingle(r){ clearSelection(); selectedList=[r]; r.dom.classList.add('selected'); updateProps(); }
@@ -385,17 +410,10 @@ function updateProps(){
 function updateSel(k,v){ selectedList.forEach(s=>{ s[k]=v; if(k==='color'){s.dom.style.color=v;s.dom.style.borderColor=v;} if(k==='label')s.dom.querySelector('.chair-text').textContent=v; if(k==='text'){ if(s.type==='dim') s.dom.querySelector('.dim-text').textContent=v; else { const hs=s.dom.querySelectorAll('.handle'); s.dom.textContent=v; hs.forEach(h=>s.dom.appendChild(h)); } } }); saveHistory(); }
 
 function setupEvents(){ 
-  stage.addEventListener('pointerdown',onDown); 
-  window.addEventListener('pointermove',onMove); 
-  window.addEventListener('pointerup',onUp); 
+  stage.addEventListener('pointerdown',onDown); window.addEventListener('pointermove',onMove); window.addEventListener('pointerup',onUp); 
   window.addEventListener('keydown', e=>{ 
-    if(e.key==='Shift') isShift=true; 
-    if(e.ctrlKey&&e.key==='z') undo(); 
-    if(e.ctrlKey&&e.key==='y') redo(); 
-    if(e.key==='Delete'||e.key==='Backspace') {
-       // input/textarea入力中は削除しない
-       if(document.activeElement.tagName !== 'INPUT') deleteSelected();
-    }
+    if(e.key==='Shift') isShift=true; if(e.ctrlKey&&e.key==='z') undo(); if(e.ctrlKey&&e.key==='y') redo(); 
+    if((e.key==='Delete'||e.key==='Backspace') && document.activeElement.tagName !== 'INPUT') deleteSelected();
   }); 
   window.addEventListener('keyup', e=>{ if(e.key==='Shift') isShift=false; }); 
 }
@@ -403,9 +421,9 @@ function setupEvents(){
 function getXY(e){ const r=stage.getBoundingClientRect(); return {x:(e.clientX-r.left)/zoomLevel, y:(e.clientY-r.top)/zoomLevel}; }
 function snap(p1, p2) { if(!isShift) return p2; const dx=Math.abs(p2.x-p1.x), dy=Math.abs(p2.y-p1.y); return dx>dy?{x:p2.x,y:p1.y}:{x:p1.x,y:p2.y}; }
 
+// 配置後のガイド線（緑色の点線レール）
 function refreshSVG(){
-  svg.innerHTML='';
-  const gids=new Set();
+  svg.innerHTML=''; const gids=new Set();
   elements.forEach(el=>{
     if(el.gid && el.pathType && el.pathPts && !gids.has(el.gid)){
       gids.add(el.gid);
@@ -413,46 +431,50 @@ function refreshSVG(){
         const [p1,p2,p3]=el.pathPts;
         const p=document.createElementNS('http://www.w3.org/2000/svg','path');
         p.setAttribute('d',`M${p1.x},${p1.y} Q${p3.x},${p3.y} ${p2.x},${p2.y}`);
-        p.setAttribute('stroke','rgba(29,158,117,0.4)'); p.setAttribute('fill','none'); p.setAttribute('stroke-dasharray','5,5');
-        p.setAttribute('stroke-width', '10'); // Hit area
-        p.style.cursor = 'pointer'; p.style.pointerEvents = 'auto';
-        p.dataset.gid = el.gid;
-        svg.appendChild(p);
+        p.setAttribute('stroke','rgba(29,158,117,0.5)'); p.setAttribute('fill','none'); p.setAttribute('stroke-dasharray','5,5');
+        p.setAttribute('stroke-width', '10'); p.style.cursor = 'pointer'; p.style.pointerEvents = 'auto';
+        p.dataset.gid = el.gid; svg.appendChild(p);
       } else if(el.pathType==='line'){
         const [p1,p2]=el.pathPts;
         const l=document.createElementNS('http://www.w3.org/2000/svg','line');
         l.setAttribute('x1',p1.x); l.setAttribute('y1',p1.y); l.setAttribute('x2',p2.x); l.setAttribute('y2',p2.y);
-        l.setAttribute('stroke','rgba(29,158,117,0.4)'); l.setAttribute('stroke-dasharray','5,5');
-        l.setAttribute('stroke-width', '10');
-        l.style.cursor = 'pointer'; l.style.pointerEvents = 'auto';
-        l.dataset.gid = el.gid;
-        svg.appendChild(l);
+        l.setAttribute('stroke','rgba(29,158,117,0.5)'); l.setAttribute('stroke-dasharray','5,5');
+        l.setAttribute('stroke-width', '10'); l.style.cursor = 'pointer'; l.style.pointerEvents = 'auto';
+        l.dataset.gid = el.gid; svg.appendChild(l);
       }
     }
   });
 }
 
+// 作成中のプレビュー（1-3-2の点線ガイド含む）
 function drawPreviews(pt){
   refreshSVG();
-  if(arcPts.length===1) drawLine(arcPts[0],pt);
-  if(arcPts.length===2) {
-    const p=document.createElementNS('http://www.w3.org/2000/svg','path');
-    p.setAttribute('d',`M${arcPts[0].x},${arcPts[0].y} Q${pt.x},${pt.y} ${arcPts[1].x},${arcPts[1].y}`);
-    p.setAttribute('stroke','#1d9e75'); p.setAttribute('fill','none'); svg.appendChild(p);
+  if(tool==='arc'){
+    if(arcPts.length===1) drawGuideLine(arcPts[0], pt);
+    if(arcPts.length===2) {
+      drawGuideLine(arcPts[0], pt); drawGuideLine(arcPts[1], pt); // 1-3, 2-3の点線
+      const p=document.createElementNS('http://www.w3.org/2000/svg','path');
+      p.setAttribute('d',`M${arcPts[0].x},${arcPts[0].y} Q${pt.x},${pt.y} ${arcPts[1].x},${arcPts[1].y}`);
+      p.setAttribute('stroke','#1d9e75'); p.setAttribute('fill','none'); svg.appendChild(p);
+    }
   }
-  if(linePts.length===1) drawLine(linePts[0], snap(linePts[0],pt));
-  if(dimPts.length===1) drawLine(dimPts[0], snap(dimPts[0],pt));
+  if(tool==='line' && linePts.length===1) drawGuideLine(linePts[0], snap(linePts[0],pt));
+  if(tool==='dim' && dimPts.length===1) drawGuideLine(dimPts[0], snap(dimPts[0],pt));
 }
-function drawLine(p1,p2){ const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',p1.x);l.setAttribute('y1',p1.y);l.setAttribute('x2',p2.x);l.setAttribute('y2',p2.y);l.setAttribute('stroke','#1d9e75');svg.appendChild(l); }
 
-function updateHint(){ const h=document.getElementById('hint-box'); let txt={select:"選択・ドラッグ移動。弧をクリックでグループ移動。背景ドラッグで範囲選択。",chair:"配置。",arc:"3点クリックで弧に沿って椅子を配置。",line:"2点クリックで直線に沿って椅子を配置。",label:"クリックしてラベル配置。",rect:"四角形を配置。",dim:"2点間の距離を計測。"}[tool]; h.innerHTML=`💡 ヒント: ${txt}`; }
+function drawGuideLine(p1,p2){
+  const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+  l.setAttribute('x1',p1.x); l.setAttribute('y1',p1.y); l.setAttribute('x2',p2.x); l.setAttribute('y2',p2.y);
+  l.setAttribute('stroke','rgba(29,158,117,0.6)'); l.setAttribute('stroke-dasharray','4,4'); svg.appendChild(l);
+}
+
+function updateHint(){ const h=document.getElementById('hint-box'); let txt={select:"選択。弧/線をクリックでグループ移動。背景ドラッグで範囲選択。",chair:"クリックで配置。",arc:"1始点・2終点・3頂点の順にクリックして弧配置。",line:"2点クリックで直線配置。",label:"ラベルを配置。",rect:"四角形を配置。",dim:"2点間の距離を計測。"}[tool]; h.innerHTML=`💡 ヒント: ${txt}`; }
 function updateGuide(){ const g=document.getElementById('guide-panel'); if(!['arc','line','dim'].includes(tool)){ g.style.display='none'; return; } g.style.display='block'; const steps={arc:['始点','終点','頂点（膨らみ）'],line:['始点','終点'],dim:['始点','終点']}[tool]; const cur=(tool==='arc'?arcPts:tool==='line'?linePts:dimPts).length; document.getElementById('guide-title').textContent={arc:'⌒ 弧配置',line:'｜ 線配置',dim:'↔ 寸法'}[tool]; document.getElementById('guide-steps').innerHTML=steps.map((s,i)=>`<div class="step ${i===cur?'active':''}"><span class="step-num">${i+1}</span>${s}</div>`).join(''); }
 
-// Data Management
-function exportTemplate(){ const d=JSON.stringify({elements:elements.map(e=>({type:e.type,x:e.x,y:e.y,w:e.w,h:e.h,angle:e.angle,color:e.color,label:e.label,text:e.text,bw:e.bw,gid:e.gid,pathType:e.pathType,pathPts:e.pathPts,pathT:e.pathT}))}); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([d],{type:'application/json'})); a.download='stage_v20.json'; a.click(); }
+function exportTemplate(){ const d=JSON.stringify({elements:elements.map(e=>({type:e.type,x:e.x,y:e.y,w:e.w,h:e.h,angle:e.angle,color:e.color,label:e.label,text:e.text,bw:e.bw,gid:e.gid,pathType:e.pathType,pathPts:e.pathPts,pathT:e.pathT}))}); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([d],{type:'application/json'})); a.download='stage_v20_1.json'; a.click(); }
 function importTemplate(){ const i=document.createElement('input'); i.type='file'; i.onchange=async e=>{ const d=JSON.parse(await e.target.files[0].text()); elements.forEach(el=>el.dom.remove()); elements=[]; d.elements.forEach(en=>addElem(en.type,en.x,en.y,en)); saveHistory(); refreshSVG(); }; i.click(); }
 async function loadPDF(){ const i=document.createElement('input'); i.type='file'; i.accept='.pdf'; i.onchange=async e=>{ const d=new Uint8Array(await e.target.files[0].arrayBuffer()); pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; const pdf=await pdfjsLib.getDocument({data:d}).promise; const page=await pdf.getPage(1); const vp=page.getViewport({scale:1.5}); const cv=document.getElementById('bg'); cv.width=vp.width; cv.height=vp.height; stage.style.width=vp.width+'px'; stage.style.height=vp.height+'px'; await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise; cv.style.display='block'; }; i.click(); }
-function exportPNG(){ const prev=svg.innerHTML; refreshSVG(); html2canvas(stage,{scale:2}).then(c=>{ const a=document.createElement('a'); a.download='stage_v20.png'; a.href=c.toDataURL(); a.click(); }); }
+function exportPNG(){ const prev=svg.innerHTML; refreshSVG(); html2canvas(stage,{scale:2}).then(c=>{ const a=document.createElement('a'); a.download='stage_v20_1.png'; a.href=c.toDataURL(); a.click(); }); }
 function resetCanvas(){ if(confirm("全て消去しますか？")){ elements.forEach(e=>e.dom.remove()); elements=[]; saveHistory(); refreshSVG(); } }
 
 window.onload=init;
