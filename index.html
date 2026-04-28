@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>舞台配置図 Pro v17.9.1</title>
+<title>舞台配置図 Pro v17.9.2</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
@@ -47,10 +47,13 @@ input[type=number]{width:45px;padding:2px 4px;font-size:11px;border:1px solid #c
 .stage-grid{position:absolute;inset:0;pointer-events:none;z-index:2;background-image:linear-gradient(rgba(0,0,0,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.05) 1px,transparent 1px);background-size:30px 30px;}
 #svg-layer{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:3;}
 
+/* Selection Box */
+#selection-rect{position:absolute;border:1px solid #1d9e75;background:rgba(29,158,117,0.15);pointer-events:none;z-index:1000;display:none;}
+
 /* Elements */
 .elem{position:absolute;cursor:move;user-select:none;touch-action:none;z-index:10;pointer-events:auto;}
 .chair{border-radius:50%;border:2px solid;background:white;display:flex;align-items:center;justify-content:center;font-weight:600;width:100%;height:100%;}
-.chair-text{position:absolute;white-space:nowrap;pointer-events:none;text-align:center;line-height:1;}
+.chair-text{position:absolute;white-space:nowrap;pointer-events:none;text-align:center;line-height:1;width: 100%; overflow: visible;}
 .elem.selected{outline:2px solid #1d9e75;outline-offset:4px;}
 .label-elem{background:white;border:1px solid #aaa;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:10px;padding:2px;text-align:center;}
 .rect-elem{border:2px solid #555;background:rgba(200,200,200,0.1);display:flex;align-items:center;justify-content:center;}
@@ -121,6 +124,7 @@ input[type=number]{width:45px;padding:2px 4px;font-size:11px;border:1px solid #c
         <canvas id="bg"></canvas>
         <div class="stage-grid"></div>
         <svg id="svg-layer"></svg>
+        <div id="selection-rect"></div>
       </div>
     </div>
   </div>
@@ -156,6 +160,10 @@ let zoomLevel=1.0, currentChairSize=26, idCounter=0;
 let currentInst=MAIN_INST[0], isShift=false;
 let draggingObjs=[], resizingObj=null, resizeHandle='', rotatingObj=null, startAng=0, startMouseAng=0;
 let arcPts=[], linePts=[], dimPts=[], history=[], historyIndex=-1;
+
+// Multi-select state
+let isSelecting=false, selectStart={x:0,y:0};
+const selRectDom=document.getElementById('selection-rect');
 
 const stage=document.getElementById('stage');
 const svg=document.getElementById('svg-layer');
@@ -222,10 +230,10 @@ function setTool(t){
 function updateHint(){
   const h=document.getElementById('hint-box');
   let text = {
-    select:"要素を選択してドラッグで移動。Delキーで削除。",
-    chair:`配置: ${currentChairSize}px。スライダーでサイズ変更。`,
-    arc:"3クリックで弧状に配置します。",
-    line:"2クリックで直線状に配置します。",
+    select:"ドラッグで範囲選択。要素を掴んで移動。Delキーで削除。",
+    chair:`配置サイズ: ${currentChairSize}px。`,
+    arc:"3クリックで弧状に配置。",
+    line:"2クリックで直線状に配置。",
     dim:"2クリックで寸法を表示。",
     label:"クリックで小型ラベルを配置。",
     rect:"クリックで四角形を配置。"
@@ -246,7 +254,6 @@ function updateSizeSetting(v){
   currentChairSize = val;
   document.getElementById('size-range').value = val;
   document.getElementById('size-input').value = val;
-  updateHint();
 }
 
 function setupEvents(){
@@ -273,6 +280,7 @@ function snap(p1, p2) {
 
 function onDown(e){
   let pt=getXY(e);
+  // Handle controls
   if(e.target.classList.contains('handle')){
     const rec=elements.find(el=>el.dom===e.target.parentElement);
     if(e.target.classList.contains('rot')){
@@ -281,16 +289,28 @@ function onDown(e){
     } else { resizingObj=rec; resizeHandle=e.target.dataset.pos; }
     e.stopPropagation(); return;
   }
+
+  // Handle element click
   const ed=e.target.closest('.elem');
   if(ed){
     const rec=elements.find(el=>el.id==ed.dataset.id);
     if(tool==='select'){
-      if(e.shiftKey) toggleSelect(rec); else if(!selectedList.includes(rec)) selectSingle(rec);
+      if(e.shiftKey) toggleSelect(rec); 
+      else if(!selectedList.includes(rec)) selectSingle(rec);
       draggingObjs=selectedList.map(o=>({obj:o, ox:pt.x-o.x, oy:pt.y-o.y}));
     }
     return;
   }
-  if(tool==='select') clearSelection();
+
+  // Handle background click (Tool specific)
+  if(tool==='select'){
+    clearSelection();
+    isSelecting=true;
+    selectStart=pt;
+    selRectDom.style.display='block';
+    selRectDom.style.width='0';
+    selRectDom.style.height='0';
+  }
   else if(tool==='chair') addElem('chair',pt.x-currentChairSize/2,pt.y-currentChairSize/2);
   else if(tool==='label') addElem('label',pt.x-22,pt.y-12,{text:prompt('ラベル内容','')||'Label', color:PERC_COLOR, w:45, h:25});
   else if(tool==='rect') addElem('rect',pt.x-50,pt.y-30);
@@ -301,15 +321,37 @@ function onDown(e){
 
 function onMove(e){
   let pt=getXY(e);
+  
+  if(isSelecting){
+    const x=Math.min(pt.x, selectStart.x), y=Math.min(pt.y, selectStart.y);
+    const w=Math.abs(pt.x-selectStart.x), h=Math.abs(pt.y-selectStart.y);
+    selRectDom.style.left=x+'px'; selRectDom.style.top=y+'px';
+    selRectDom.style.width=w+'px'; selRectDom.style.height=h+'px';
+    
+    // Auto-select inside rect
+    elements.forEach(el=>{
+      const isInside = (el.x > x && el.x+el.w < x+w && el.y > y && el.y+el.h < y+h);
+      if(isInside && !selectedList.includes(el)) { el.dom.classList.add('selected'); selectedList.push(el); }
+      else if(!isInside && selectedList.includes(el) && !isShift) { el.dom.classList.remove('selected'); selectedList=selectedList.filter(s=>s!==el); }
+    });
+    updateProps();
+  }
+
   if(draggingObjs.length){
     draggingObjs.forEach(d=>{ d.obj.x=pt.x-d.ox; d.obj.y=pt.y-d.oy; d.obj.dom.style.left=d.obj.x+'px'; d.obj.dom.style.top=d.obj.y+'px'; });
   }
+  
   if(resizingObj){
     const r=resizingObj;
     if(resizeHandle==='se'){ r.w=Math.max(20,pt.x-r.x); r.h=Math.max(20,pt.y-r.y); }
     else if(resizeHandle==='nw'){ const or=r.x+r.w, ob=r.y+r.h; r.x=pt.x; r.y=pt.y; r.w=Math.max(20,or-pt.x); r.h=Math.max(20,ob-pt.y); }
     r.dom.style.left=r.x+'px'; r.dom.style.top=r.y+'px'; r.dom.style.width=r.w+'px'; r.dom.style.height=r.h+'px';
+    if(r.type==='chair'){
+        const txt=r.dom.querySelector('.chair-text');
+        if(txt) txt.style.fontSize = Math.max(7, r.w/3.5) + 'px';
+    }
   }
+
   if(rotatingObj){
     const r=rotatingObj, c={x:r.x+r.w/2, y:r.y+r.h/2};
     let a=startAng+(Math.atan2(pt.y-c.y, pt.x-c.x)-startMouseAng)*180/Math.PI;
@@ -319,7 +361,11 @@ function onMove(e){
   if(arcPts.length||linePts.length||dimPts.length) drawPreviews(pt);
 }
 
-function onUp(){ if(draggingObjs.length||resizingObj||rotatingObj) saveHistory(); draggingObjs=[]; resizingObj=null; rotatingObj=null; }
+function onUp(){
+  if(isSelecting) { isSelecting=false; selRectDom.style.display='none'; }
+  if(draggingObjs.length||resizingObj||rotatingObj) saveHistory();
+  draggingObjs=[]; resizingObj=null; rotatingObj=null;
+}
 
 function addElem(type,x,y,opts={}){
   const id=opts.id||++idCounter;
@@ -331,8 +377,8 @@ function addElem(type,x,y,opts={}){
   div.style.width=w+'px'; div.style.height=h+'px'; div.style.transform=`rotate(${ang}deg)`;
   
   if(type==='chair'){
-    // フォントサイズの計算をさらに小さく調整 (w/4)
-    const fontSize = Math.max(7, w / 4);
+    // フォントサイズを椅子サイズに追従させる (w/3.5)
+    const fontSize = Math.max(7, w / 3.5);
     div.innerHTML=`<div class="chair" style="border-color:${color};color:${color}"><div class="chair-text" style="font-size:${fontSize}px">${opts.label||currentInst.l}</div></div>`;
   } else if(type==='dim'){
     div.className='elem dim-elem'; div.style.width='auto'; div.style.height='auto';
@@ -415,6 +461,8 @@ function clearSelection(){ selectedList.forEach(r=>r.dom.classList.remove('selec
 function updateProps(){
   const p=document.getElementById('props');
   if(!selectedList.length){ p.textContent='要素を選択して編集'; return; }
+  if(selectedList.length > 1) { p.textContent=`${selectedList.length}個の要素を選択中`; return; }
+  
   const s=selectedList[0];
   let h=`内容:<input type="text" value="${s.type==='chair'?s.label:s.text}" oninput="updateSel('${s.type==='chair'?'label':'text'}',this.value)"> `;
   h+=`<button onclick="deleteSelected()" style="color:red">削除</button>`;
